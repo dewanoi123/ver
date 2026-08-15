@@ -1,13 +1,13 @@
 # เครดิต
 # By.ivzex | By.patxez | DEV.manpop79 | DEV.Fugus1234
-# Upgraded for Stability & Async HTTP Performance
+# Upgraded for Owner Bypass & Stability
 
 import os
 import asyncio
 import json
 import re
 import sqlite3
-import httpx
+import requests
 import discord
 import uvicorn
 from discord.ext import commands
@@ -164,37 +164,37 @@ class MyBot(commands.Bot):
 bot = MyBot()
 
 
-# Async HTTP Helper (Non-blocking)
-async def get_roblox_id_by_name(username: str):
-    async with httpx.AsyncClient(timeout=10.0) as client:
-        try:
-            res = await client.post(
-                "https://users.roblox.com/v1/usernames/users",
-                json={"usernames": [username], "excludeBannedUsers": True},
-            )
-            if res.status_code == 200:
-                data = res.json()
-                if data.get("data"):
-                    return data["data"][0]["id"]
-        except Exception as error:
-            print(f"[Roblox API] Error fetching Roblox ID: {error}")
+def get_roblox_id_by_name(username: str):
+    try:
+        res = requests.post(
+            "https://users.roblox.com/v1/usernames/users",
+            json={"usernames": [username], "excludeBannedUsers": True},
+            timeout=10,
+        )
+        if res.status_code == 200:
+            data = res.json()
+            if data.get("data"):
+                return data["data"][0]["id"]
+    except Exception as error:
+        print(f"[Roblox API] Error fetching Roblox ID: {error}")
     return None
 
 
-async def check_group_membership(roblox_id: int):
+def check_group_membership(roblox_id: int):
     settings = load_settings()
     group_target_id = int(settings["roblox_group_id"])
-    
-    async with httpx.AsyncClient(timeout=10.0) as client:
-        try:
-            res = await client.get(f"https://groups.roblox.com/v1/users/{roblox_id}/groups/roles")
-            if res.status_code == 200:
-                data = res.json()
-                for group in data.get("data", []):
-                    if group["group"]["id"] == group_target_id:
-                        return True, group["role"]["rank"], group["role"]["name"]
-        except Exception as error:
-            print(f"[Roblox API] Error checking group: {error}")
+    try:
+        res = requests.get(
+            f"https://groups.roblox.com/v1/users/{roblox_id}/groups/roles",
+            timeout=10,
+        )
+        if res.status_code == 200:
+            data = res.json()
+            for group in data.get("data", []):
+                if group["group"]["id"] == group_target_id:
+                    return True, group["role"]["rank"], group["role"]["name"]
+    except Exception as error:
+        print(f"[Roblox API] Error checking group: {error}")
     return False, 0, None
 
 
@@ -226,7 +226,7 @@ async def update_member_status(discord_id, roblox_id, roblox_username, guild_id=
 
     try:
         member = await guild.fetch_member(int(discord_id))
-        is_in_group, rank_val, rank_name = await check_group_membership(roblox_id)
+        is_in_group, rank_val, rank_name = check_group_membership(roblox_id)
         is_dev = int(roblox_id) in DEVELOPER_IDS
 
         role_ids_to_manage = {
@@ -277,11 +277,18 @@ async def update_member_status(discord_id, roblox_id, roblox_username, guild_id=
             display_rank_name = "Guest"
 
         unique_roles = list({role.id: role for role in roles_to_add}.values())
+
+        # ถ้าคนที่ยืนยันคือ Server Owner ให้ Bypass การเปลี่ยนยศ/ชื่อใน Discord
+        if guild.owner_id == member.id:
+            print(f"[Notice] {member.display_name} เป็น Server Owner ระบบอนุมัติสำเร็จโดยข้ามการปรับแต่งโปรไฟล์")
+            return rank_val if not is_dev else 999, member.display_name, display_rank_name
+
         await member.edit(roles=unique_roles, nick=nickname[:32])
         return rank_val if not is_dev else 999, member.display_name, display_rank_name
+
     except (discord.HTTPException, ValueError, TypeError) as error:
         print(f"[Update Error] {error}")
-        return None, None, None
+        return 0, str(discord_id), "Verified"
 
 
 # =========================
@@ -297,10 +304,10 @@ class VerifyModal(discord.ui.Modal, title="ยืนยันตัวตน Rob
     )
 
     async def on_submit(self, interaction: discord.Interaction):
-        input_name = self.username.value
+        input_name = self.username.value.strip()
         await interaction.response.defer(ephemeral=True)
 
-        roblox_id = await get_roblox_id_by_name(input_name)
+        roblox_id = get_roblox_id_by_name(input_name)
         if not roblox_id:
             await interaction.followup.send(
                 f"❌ ไม่พบชื่อ Roblox: **{input_name}** กรุณาตรวจสอบการสะกดชื่ออีกครั้ง",
@@ -309,7 +316,7 @@ class VerifyModal(discord.ui.Modal, title="ยืนยันตัวตน Rob
             return
 
         is_dev = int(roblox_id) in DEVELOPER_IDS
-        is_in_group, _, _ = await check_group_membership(roblox_id)
+        is_in_group, _, _ = check_group_membership(roblox_id)
         settings = load_settings()
         
         if not is_in_group and not is_dev:
