@@ -15,7 +15,7 @@ from contextlib import asynccontextmanager
 # CONFIGURATION
 # =========================
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN", "")
-PORT = int(os.getenv("PORT", 8888))
+PORT = int(os.getenv("PORT", 8080))
 DB_PATH = os.getenv("DB_PATH", "database.db")
 
 DEFAULT_SETTINGS = {
