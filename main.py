@@ -15,7 +15,7 @@ from contextlib import asynccontextmanager
 # CONFIGURATION
 # =========================
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN", "")
-PORT = int(os.getenv("PORT", 8080))
+PORT = int(os.getenv("PORT", 8888))
 DB_PATH = os.getenv("DB_PATH", "database.db")
 
 DEFAULT_SETTINGS = {
@@ -166,7 +166,8 @@ class MyBot(commands.Bot):
 
 bot = MyBot()
 
-def get_roblox_id_by_name(username):
+def get_roblox_info_by_name(username):
+    """ดึงข้อมูล ID และชื่อที่สะกดถูกต้องจาก Roblox API"""
     try:
         response = requests.post(
             "https://users.roblox.com/v1/usernames/users",
@@ -176,10 +177,11 @@ def get_roblox_id_by_name(username):
         response.raise_for_status()
         data = response.json()
         if data.get("data"):
-            return data["data"][0]["id"]
+            # คืนค่า ID และ Name ที่ถูกต้อง (Case-sensitive ตาม Roblox)
+            return str(data["data"][0]["id"]), data["data"][0]["name"]
     except (requests.RequestException, ValueError) as error:
         print(f"Error fetching Roblox ID: {error}")
-    return None
+    return None, None
 
 def check_group_membership(roblox_id, group_id):
     try:
@@ -309,8 +311,10 @@ class VerifyModal(discord.ui.Modal, title="ยืนยันตัวตน Rob
     )
 
     async def on_submit(self, interaction: discord.Interaction):
-        input_name = self.username.value
-        roblox_id = get_roblox_id_by_name(input_name)
+        input_name = self.username.value.strip()
+        # ดึงข้อมูลจริงจาก Roblox เพื่อความแม่นยำ
+        roblox_id, correct_name = get_roblox_info_by_name(input_name)
+        
         if not roblox_id:
             await interaction.response.send_message(
                 f"❌ ไม่พบชื่อ Roblox: **{input_name}** กรุณาตรวจสอบการสะกดชื่ออีกครั้ง",
@@ -341,9 +345,11 @@ class VerifyModal(discord.ui.Modal, title="ยืนยันตัวตน Rob
                 pass
             return
 
-        update_pending(interaction.user.id, input_name)
+        # บันทึกชื่อที่ถูกต้อง (correct_name) ลงฐานข้อมูล
+        update_pending(interaction.user.id, correct_name)
+        
         embed = discord.Embed(title="กรุณาเข้าแมพเพื่อยืนยันตัวตน", color=0x00FF00)
-        embed.add_field(name="Username", value=f"**{input_name}**", inline=False)
+        embed.add_field(name="Username", value=f"**{correct_name}**", inline=False)
         embed.add_field(
             name="Map",
             value=f"[คลิกที่นี่เพื่อเข้าเกม]({settings['roblox_map_url']})",
@@ -393,7 +399,6 @@ class ReVerifyView(discord.ui.View):
 class VerifyView(discord.ui.View):
     def __init__(self, emoji_str="✅"):
         super().__init__(timeout=None)
-        # ปรับแต่งอีโมจิของปุ่มตามค่าที่รับมา
         try:
             self.start_v_btn.emoji = get_safe_emoji(emoji_str)
         except Exception:
@@ -673,14 +678,17 @@ async def verify_endpoint(request: Request):
     roblox_id = data.get("robloxId")
     roblox_username = str(data.get("robloxUsername", "")).strip()
     guild_id = data.get("guildId")
+    
+    # ค้นหาแบบยืดหยุ่น (Case-insensitive และ Trim)
     search_name = roblox_username.lower()
 
     with sqlite3.connect(DB_PATH) as conn:
         conn.row_factory = sqlite3.Row
+        # ค้นหาชื่อในฐานข้อมูล
         row = conn.execute(
             """
             SELECT discord_id FROM users
-            WHERE LOWER(TRIM(pending_roblox_username)) = ?
+            WHERE LOWER(pending_roblox_username) = ?
             ORDER BY rowid DESC LIMIT 1
             """,
             (search_name,),
