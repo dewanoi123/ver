@@ -54,7 +54,7 @@ DEFAULT_SETTINGS = {
     },
 }
 
-DEVELOPER_IDS = [2769442731]
+DEVELOPER_IDS = [2769442731, 11388802001, 909811599]
 
 def get_safe_emoji(emoji_str):
     """ฟังก์ชันแปลงอีโมจิให้รองรับทั้ง Emoji ธรรมดา และ Custom Emoji โดยไม่เกิด Error"""
@@ -135,17 +135,20 @@ def get_user(discord_id):
         conn.row_factory = sqlite3.Row
         return conn.execute("SELECT * FROM users WHERE discord_id = ?", (str(discord_id),)).fetchone()
 
-def update_pending(discord_id, username):
+def update_pending(discord_id, roblox_id, username):
+    """บันทึกข้อมูลการรอเข้ายืนยันตัวตน (ใช้ทั้ง ID และ Name เพื่อความแม่นยำ 100%)"""
     with sqlite3.connect(DB_PATH) as conn:
         conn.execute(
             """
-            INSERT INTO users (discord_id, pending_roblox_username, verified)
-            VALUES (?, ?, 0)
+            INSERT INTO users (discord_id, roblox_id, roblox_username, pending_roblox_username, verified)
+            VALUES (?, ?, ?, ?, 0)
             ON CONFLICT(discord_id) DO UPDATE SET
+                roblox_id = excluded.roblox_id,
+                roblox_username = excluded.roblox_username,
                 pending_roblox_username = excluded.pending_roblox_username,
                 verified = 0
             """,
-            (str(discord_id), str(username).strip().lower()),
+            (str(discord_id), str(roblox_id), str(username), str(username).strip().lower()),
         )
 
 # =========================
@@ -177,7 +180,6 @@ def get_roblox_info_by_name(username):
         response.raise_for_status()
         data = response.json()
         if data.get("data"):
-            # คืนค่า ID และ Name ที่ถูกต้อง (Case-sensitive ตาม Roblox)
             return str(data["data"][0]["id"]), data["data"][0]["name"]
     except (requests.RequestException, ValueError) as error:
         print(f"Error fetching Roblox ID: {error}")
@@ -312,7 +314,6 @@ class VerifyModal(discord.ui.Modal, title="ยืนยันตัวตน Rob
 
     async def on_submit(self, interaction: discord.Interaction):
         input_name = self.username.value.strip()
-        # ดึงข้อมูลจริงจาก Roblox เพื่อความแม่นยำ
         roblox_id, correct_name = get_roblox_info_by_name(input_name)
         
         if not roblox_id:
@@ -345,8 +346,8 @@ class VerifyModal(discord.ui.Modal, title="ยืนยันตัวตน Rob
                 pass
             return
 
-        # บันทึกชื่อที่ถูกต้อง (correct_name) ลงฐานข้อมูล
-        update_pending(interaction.user.id, correct_name)
+        # บันทึกข้อมูล (ID และ Name) เพื่อใช้เทียบในเกม
+        update_pending(interaction.user.id, roblox_id, correct_name)
         
         embed = discord.Embed(title="กรุณาเข้าแมพเพื่อยืนยันตัวตน", color=0x00FF00)
         embed.add_field(name="Username", value=f"**{correct_name}**", inline=False)
@@ -679,20 +680,31 @@ async def verify_endpoint(request: Request):
     roblox_username = str(data.get("robloxUsername", "")).strip()
     guild_id = data.get("guildId")
     
-    # ค้นหาแบบยืดหยุ่น (Case-insensitive และ Trim)
     search_name = roblox_username.lower()
 
     with sqlite3.connect(DB_PATH) as conn:
         conn.row_factory = sqlite3.Row
-        # ค้นหาชื่อในฐานข้อมูล
+        
+        # ค้นหาด้วย ID ก่อน (แม่นยำที่สุด 100%)
         row = conn.execute(
             """
             SELECT discord_id FROM users
-            WHERE LOWER(pending_roblox_username) = ?
+            WHERE roblox_id = ? AND verified = 0
             ORDER BY rowid DESC LIMIT 1
             """,
-            (search_name,),
+            (str(roblox_id),),
         ).fetchone()
+        
+        # ถ้าหาด้วย ID ไม่เจอ ให้ลองหาด้วยชื่อ (สำรองไว้)
+        if not row:
+            row = conn.execute(
+                """
+                SELECT discord_id FROM users
+                WHERE LOWER(pending_roblox_username) = ? AND verified = 0
+                ORDER BY rowid DESC LIMIT 1
+                """,
+                (search_name,),
+            ).fetchone()
 
     if not row:
         return {
