@@ -24,7 +24,7 @@ DEFAULT_SETTINGS = {
     "roblox_map_url": "https://www.roblox.com/th/games/109069394163925/ver",
     "verified_role_id": 1537125389930074152,
     "developer_role_id": 1537109884263211018,
-    "verified_emoji": "✅",  # เพิ่มอีโมจิเริ่มต้นใน Settings
+    "verified_emoji": "✅",
     "role_ids": {
         "or": 1537098607319195698,
         "of_low": 1538617608813674546,
@@ -57,7 +57,6 @@ DEFAULT_SETTINGS = {
 DEVELOPER_IDS = [2769442731, 11388802001, 909811599]
 
 def get_safe_emoji(emoji_str):
-    """ฟังก์ชันแปลงอีโมจิให้รองรับทั้ง Emoji ธรรมดา และ Custom Emoji โดยไม่เกิด Error"""
     if not emoji_str:
         return "✅"
     if isinstance(emoji_str, str) and emoji_str.startswith("<") and emoji_str.endswith(">"):
@@ -136,7 +135,6 @@ def get_user(discord_id):
         return conn.execute("SELECT * FROM users WHERE discord_id = ?", (str(discord_id),)).fetchone()
 
 def update_pending(discord_id, roblox_id, username):
-    """บันทึกข้อมูลการรอเข้ายืนยันตัวตน (ใช้ทั้ง ID และ Name เพื่อความแม่นยำ 100%)"""
     with sqlite3.connect(DB_PATH) as conn:
         conn.execute(
             """
@@ -170,7 +168,6 @@ class MyBot(commands.Bot):
 bot = MyBot()
 
 def get_roblox_info_by_name(username):
-    """ดึงข้อมูล ID และชื่อที่สะกดถูกต้องจาก Roblox API"""
     try:
         response = requests.post(
             "https://users.roblox.com/v1/usernames/users",
@@ -284,7 +281,16 @@ async def update_member_status(discord_id, roblox_id, roblox_username, guild_id=
             display_rank_name = "Guest"
 
         unique_roles = list({role.id: role for role in roles_to_add}.values())
-        await member.edit(roles=unique_roles, nick=nickname[:32])
+        
+        # 1. มอบยศ (ทำงานได้แม้อยู่ในกรณีของ Server Owner)
+        await member.edit(roles=unique_roles)
+
+        # 2. ตั้งชื่อเล่น (หากเปลี่ยนชื่อเจ้าของเซิร์ฟเวอร์ไม่ได้ ระบบจะข้ามไปโดยไม่ทำให้การมอบยศล้มเหลว)
+        try:
+            await member.edit(nick=nickname[:32])
+        except discord.HTTPException as nick_error:
+            print(f"ข้ามการเปลี่ยนชื่อสมาชิก ({member.name}): {nick_error}")
+
         return rank_val if not is_dev else 999, member.display_name, display_rank_name, None
     except discord.HTTPException as error:
         if error.code == 50013:
@@ -346,7 +352,6 @@ class VerifyModal(discord.ui.Modal, title="ยืนยันตัวตน Rob
                 pass
             return
 
-        # บันทึกข้อมูล (ID และ Name) เพื่อใช้เทียบในเกม
         update_pending(interaction.user.id, roblox_id, correct_name)
         
         embed = discord.Embed(title="กรุณาเข้าแมพเพื่อยืนยันตัวตน", color=0x00FF00)
@@ -685,7 +690,6 @@ async def verify_endpoint(request: Request):
     with sqlite3.connect(DB_PATH) as conn:
         conn.row_factory = sqlite3.Row
         
-        # ค้นหาด้วย ID ก่อน (แม่นยำที่สุด 100%)
         row = conn.execute(
             """
             SELECT discord_id FROM users
@@ -695,7 +699,6 @@ async def verify_endpoint(request: Request):
             (str(roblox_id),),
         ).fetchone()
         
-        # ถ้าหาด้วย ID ไม่เจอ ให้ลองหาด้วยชื่อ (สำรองไว้)
         if not row:
             row = conn.execute(
                 """
