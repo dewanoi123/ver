@@ -29,16 +29,16 @@ COLOR_ACCENT = 0xF1C40F       # Gold Accent
 DEFAULT_SETTINGS = {
     "roblox_group_id": 33852603,
     "roblox_group_url": "https://www.roblox.com/groups/33852603",
-    "roblox_map_url": "https://www.roblox.com/th/games/109069394163925/ver",
-    "verified_role_id": 1537125389930074152,
-    "developer_role_id": 1537109884263211018,
+    "roblox_map_url": "https://www.roblox.com/games/17709721251",
+    "verified_role_id": 1420812478023204995,
+    "developer_role_id": 1420812428740133016,
     "verified_emoji": "✅",
     "role_ids": {
-        "or": 1537098607319195698,
-        "cd": 1540711255625441351,
-        "of_low": 1538617608813674546,
-        "of_high": 1538617692385312920,
-        "hq": 1540680732597428255,     # กองบัญชาการ
+        "or": 1420812475804287056,
+        "cd": 1420812474227101707,
+        "of_low": 1420812472616751278,
+        "of_high": 1420812470905213019,
+        "hq": 1420812465775710354,
         "guest": None,
     },
     "rank_prefixes": {
@@ -599,7 +599,9 @@ async def setup_verify(interaction: discord.Interaction):
             "ยินดีต้อนรับสู่ระบบยืนยันตัวตน กรุณากดปุ่ม **`ยืนยันตัวตนที่นี่`** ด้านล่างเพื่อเริ่มต้นขั้นตอนผูกบัญชี Discord เข้ากับ Roblox\n\n"
             "**📌 สิ่งที่คุณต้องเตรียม:**\n"
             "• ชื่อผู้ใช้ Roblox (Username)\n"
-            "• เข้าร่วมกลุ่ม Roblox ที่กำหนดให้เรียบร้อย"
+            "• เข้าร่วมกลุ่ม Roblox ที่กำหนดให้เรียบร้อย\n"
+            "• เข้าแมพ ที่ได้ทำการส่งไปให้\n"
+            "• หลังเข้าเกมแล้วพิมพ์ ยืนยัน แล้วจะขึ้น หน้าต่าง แล้วกดยืนยันตัวตนได้เลย"
         ),
         color=COLOR_PRIMARY,
     )
