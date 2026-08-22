@@ -32,33 +32,51 @@ DEFAULT_SETTINGS = {
     "roblox_map_url": "https://www.roblox.com/th/games/109069394163925/ver",
     "verified_role_id": 1537125389930074152,
     "developer_role_id": 1537109884263211018,
-    "verified_emoji": "🛡️",
+    "verified_emoji": "✅",
     "role_ids": {
         "or": 1537098607319195698,
         "of_low": 1538617608813674546,
         "of_high": 1538617692385312920,
+        "hq": 1540680732597428255,     # กองบัญชาการ
         "guest": None,
     },
     "rank_prefixes": {
-        "or-1": "OR-1, PC",
-        "or-2": "OR-2, PEC",
-        "or-3": "OR-3, CPL",
-        "or-4": "OR-4, SGT",
-        "or-5": "OR-5, SSG",
-        "or-6": "OR-6/OR-7, SFC",
-        "or-7": "OR-6/OR-7, SFC",
-        "or-8": "OR-8/OR-9, MSG",
-        "or-9": "OR-8/OR-9, MSG",
-        "of-1a": "OF-1A, LTP",
+        # --- ชั้นประทวน (OR-1 ถึง OR-9) ---
+        "or-1": "OR-1, PVT",
+        "or-2": "OR-2, PFC",
+        "or-3": "OR-3, LCPL",
+        "or-4": "OR-4, CPL",
+        "or-5": "OR-5, SGT",
+        "or-6": "OR-6, SM3",
+        "or-7": "OR-7, SM2",
+        "or-8": "OR-8, SM1",
+        "or-9": "OR-9, SMS",
+
+        # --- นายทหารสัญญาบัตร (OF-D ถึง OF-9) ---
+        "of-d": "OF-D, ACO",
+        "of-1a": "OF-1A, 2LT",
         "of-1b": "OF-1B, 1LT",
         "of-2": "OF-2, CPT",
         "of-3": "OF-3, MAJ",
         "of-4": "OF-4, LTC",
         "of-5": "OF-5, COL",
         "of-6": "OF-6, SRCOL",
-        "of-7": "OF-7, PMG",
-        "of-8": "OF-8, MG",
+        "of-7": "OF-7, MG",
+        "of-8": "OF-8, LTG",
         "of-9": "OF-9, GEN",
+
+        # --- การเมือง / จอมพล / ราชวงศ์ ---
+        "deputy prime minister": "DPM",
+        "prime minister": "PM",
+        "mom rajawongse": "M.R.",
+        "his serene highness": "H.S.H. Prince",
+        "her highness": "H.H. Princess",
+        "his royal highness": "H.R.H. Prince",
+        "field marshal": "OF-10, FMS",
+        "royal protectorate": "Protectorate",
+        "crown prince": "Crown Prince",
+        "her majesty": "H.M. Queen",
+        "his majesty": "H.M. King"
     },
 }
 
@@ -221,13 +239,39 @@ def get_prefix_for_rank(rank_val, rank_name, settings):
         key = str(rank_key).strip().lower()
         if key in normalized_name or key in rank_aliases.get(numeric_rank, set()):
             return str(prefix).strip()
-
+        
     fallback = {
-        1: "OR-1, PC", 2: "OR-2, PEC", 3: "OR-3, CPL", 4: "OR-4, SGT",
-        5: "OR-5, SSG", 6: "OR-6/OR-7, SFC", 7: "OR-6/OR-7, SFC",
-        8: "OF-1A, LTP", 9: "OF-1B, 1LT", 10: "OF-2, CPT", 11: "OF-2, CPT",
-        12: "OF-3, MAJ", 13: "OF-4, LTC", 14: "OF-5, COL", 15: "OF-6, SRCOL",
-        16: "OF-7, PMG", 17: "OF-8, MG", 18: "OF-9, GEN",
+        1: "OR-1, PVT",
+        2: "OR-2, PFC",
+        3: "OR-3, LCPL",
+        4: "OR-4, CPL",
+        5: "OR-5, SGT",
+        6: "OR-6, SM3",
+        7: "OR-7, SM2",
+        8: "OR-8, SM1",
+        9: "OR-9, SMS",
+        10: "OF-D, ACO",
+        11: "OF-1A, 2LT",
+        12: "OF-1B, 1LT",
+        13: "OF-2, CPT",
+        14: "OF-3, MAJ",
+        15: "OF-4, LTC",
+        16: "OF-5, COL",
+        17: "OF-6, SRCOL",
+        18: "OF-7, MG",
+        19: "OF-8, LTG",
+        20: "OF-9, GEN",
+        22: "DPM",
+        23: "PM",
+        24: "M.R.",
+        25: "H.S.H. Prince",
+        26: "H.H. Princess",
+        27: "H.R.H. Prince",
+        28: "OF-10, FMS",
+        29: "Protectorate",
+        30: "Crown Prince",
+        31: "H.M. Queen",
+        32: "H.M. King"
     }
     return fallback.get(numeric_rank, "")
 
@@ -264,17 +308,21 @@ async def update_member_status(discord_id, roblox_id, roblox_username, guild_id=
             developer_role = guild.get_role(parse_id(settings.get("developer_role_id")))
             if developer_role:
                 roles_to_add.append(developer_role)
-            nickname = f"Dev | {roblox_username}"
+            nickname = f"ผู้ดูแลระบบ | {roblox_username}"
             display_rank_name = "Developer"
         elif is_in_group:
             if 1 <= rank_val <= 7:
                 rank_role = guild.get_role(parse_id(settings["role_ids"].get("or")))
             elif 8 <= rank_val <= 11:
                 rank_role = guild.get_role(parse_id(settings["role_ids"].get("of_low")))
-            elif 12 <= rank_val <= 18:
+            elif 12 <= rank_val <= 20:
                 rank_role = guild.get_role(parse_id(settings["role_ids"].get("of_high")))
+            elif (22 <= rank_val <= 23) or rank_val == 28:
+                # DPM, PM และ Field Marshal (Rank 28) จะได้ยศ HQ
+                rank_role = guild.get_role(parse_id(settings["role_ids"].get("hq")))
             else:
                 rank_role = None
+
             if rank_role:
                 roles_to_add.append(rank_role)
 
@@ -404,7 +452,7 @@ class ReVerifyView(discord.ui.View):
             return
 
         settings = get_guild_settings(guild_id)
-        v_emoji = settings.get("verified_emoji", "🛡️")
+        v_emoji = settings.get("verified_emoji", "✅")
         safe_v_emoji = get_safe_emoji(v_emoji)
         
         embed = discord.Embed(
@@ -422,7 +470,7 @@ class ReVerifyView(discord.ui.View):
         await interaction.response.send_modal(VerifyModal())
 
 class VerifyView(discord.ui.View):
-    def __init__(self, emoji_str="🛡️"):
+    def __init__(self, emoji_str="✅"):
         super().__init__(timeout=None)
         try:
             self.start_v_btn.emoji = get_safe_emoji(emoji_str)
@@ -438,18 +486,18 @@ class VerifyView(discord.ui.View):
         user = get_user(interaction.user.id)
         if user and user["verified"]:
             settings = get_guild_settings(interaction.guild_id)
-            v_emoji = settings.get("verified_emoji", "🛡️")
+            v_emoji = settings.get("verified_emoji", "✅")
             safe_v_emoji = get_safe_emoji(v_emoji)
             
             embed = discord.Embed(
-                title="🛡️ บัญชีนี้ได้รับการยืนยันตัวตนแล้ว",
+                title="✅ บัญชีนี้ได้รับการยืนยันตัวตนแล้ว",
                 description="คุณมีข้อมูลผูกไว้กับระบบเรียบร้อยแล้ว หากต้องการอัพเดทยศหรือเปลี่ยนบัญชี เลือกปุ่มด้านล่าง",
                 color=COLOR_INFO
             )
             embed.add_field(name="👤 Roblox Username", value=f"```{user['roblox_username']}```", inline=True)
             embed.add_field(name="🆔 Roblox ID", value=f"```{user['roblox_id']}```", inline=True)
             embed.add_field(name="⚡ สถานะ", value=f"```{safe_v_emoji} Verified```", inline=False)
-            embed.set_image(url=GIF_URL)  # ใส่ GIF ตกแต่ง
+            embed.set_image(url=GIF_URL) 
             embed.set_footer(text="Verification Panel • Ultra SSSSSS")
             await interaction.response.send_message(embed=embed, view=ReVerifyView(), ephemeral=True)
         else:
@@ -481,7 +529,7 @@ class CustomizeAllModal(discord.ui.Modal, title="⚙️ ปรับแต่ง
         label="Role IDs (แยกด้วย ;)",
         required=False,
         style=discord.TextStyle.paragraph,
-        placeholder="verified=ID; or=ID; of_low=ID; of_high=ID; guest=ID",
+        placeholder="verified=ID; or=ID; of_low=ID; of_high=ID; hq=ID; guest=ID",
     )
 
     async def on_submit(self, interaction: discord.Interaction):
@@ -523,7 +571,7 @@ class CustomizeAllModal(discord.ui.Modal, title="⚙️ ปรับแต่ง
                 
                 if rtype in {"verified", "developer"}:
                     settings[f"{rtype}_role_id"] = rid
-                elif rtype in {"or", "of_low", "of_high", "guest"}:
+                elif rtype in {"or", "of_low", "of_high", "hq", "guest"}:
                     settings["role_ids"][rtype] = rid
 
         save_guild_settings(guild_id, settings)
@@ -541,10 +589,10 @@ class CustomizeAllModal(discord.ui.Modal, title="⚙️ ปรับแต่ง
 @app_commands.default_permissions(administrator=True)
 async def setup_verify(interaction: discord.Interaction):
     settings = get_guild_settings(interaction.guild_id)
-    v_emoji = settings.get("verified_emoji", "🛡️")
+    v_emoji = settings.get("verified_emoji", "✅")
     
     embed = discord.Embed(
-        title="⚔️ ระบบยืนยันตัวตน | ROBLOX VERIFICATION",
+        title="✔️ ระบบยืนยันตัวตน | Roblox Verification",
         description=(
             "ยินดีต้อนรับสู่ระบบยืนยันตัวตน กรุณากดปุ่ม **`ยืนยันตัวตนที่นี่`** ด้านล่างเพื่อเริ่มต้นขั้นตอนผูกบัญชี Discord เข้ากับ Roblox\n\n"
             "**📌 สิ่งที่คุณต้องเตรียม:**\n"
@@ -556,9 +604,8 @@ async def setup_verify(interaction: discord.Interaction):
     if interaction.guild and interaction.guild.icon:
         embed.set_thumbnail(url=interaction.guild.icon.url)
     
-    # กำหนด GIF ที่แนบมาลงใน Embed ประกาศหลัก
     embed.set_image(url=GIF_URL)
-    embed.set_footer(text="Roblox Verification Management System • Ultra SSSSSS")
+    embed.set_footer(text="Roblox Verification Management System • Dev by : dewanoi123")
     
     await interaction.channel.send(embed=embed, view=VerifyView(v_emoji))
     
@@ -613,7 +660,7 @@ async def reset_db_legacy(interaction: discord.Interaction):
 @bot.tree.command(name="ใส่โรล", description="ตั้งค่า Role ให้กับประเภทที่เลือกของเซิร์ฟเวอร์นี้")
 @app_commands.default_permissions(administrator=True)
 @app_commands.describe(
-    ประเภท="verified, developer, or, of_low, of_high หรือ guest",
+    ประเภท="เลือกประเภทบทบาทที่ต้องการผูก Role",
     โรล="เลือก Role ที่ต้องการให้ระบบใช้",
 )
 @app_commands.choices(
@@ -623,6 +670,7 @@ async def reset_db_legacy(interaction: discord.Interaction):
         app_commands.Choice(name="OR", value="or"),
         app_commands.Choice(name="OF Low", value="of_low"),
         app_commands.Choice(name="OF High", value="of_high"),
+        app_commands.Choice(name="กองบัญชาการ (HQ)", value="hq"),
         app_commands.Choice(name="Guest", value="guest"),
     ]
 )
@@ -692,20 +740,21 @@ async def show_settings(interaction: discord.Interaction):
 
     settings = get_guild_settings(interaction.guild_id)
     role_ids = settings.get("role_ids", {})
-    v_emoji = settings.get("verified_emoji", "🛡️")
+    v_emoji = settings.get("verified_emoji", "✅")
     
     embed = discord.Embed(
         title="⚙️ การตั้งค่าระบบปัจจุบัน (Server Settings)",
         color=COLOR_INFO
     )
     embed.add_field(name="📌 Group ID", value=f"```{settings.get('roblox_group_id')}```", inline=True)
-    embed.add_field(name="🛡️ Verified Role ID", value=f"```{settings.get('verified_role_id')}```", inline=True)
+    embed.add_field(name="✅ Verified Role ID", value=f"```{settings.get('verified_role_id')}```", inline=True)
     embed.add_field(name="🎨 Verification Emoji", value=f"{v_emoji}", inline=True)
     
     roles_fmt = (
         f"• **OR:** `{role_ids.get('or')}`\n"
         f"• **OF Low:** `{role_ids.get('of_low')}`\n"
         f"• **OF High:** `{role_ids.get('of_high')}`\n"
+        f"• **HQ (กองบัญชาการ):** `{role_ids.get('hq')}`\n"
         f"• **Guest:** `{role_ids.get('guest')}`"
     )
     embed.add_field(name="🎭 Role Configs", value=roles_fmt, inline=False)
