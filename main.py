@@ -22,13 +22,13 @@ DEFAULT_SETTINGS = {
     "roblox_group_id": 33852603,
     "roblox_group_url": "https://www.roblox.com/groups/33852603",
     "roblox_map_url": "https://www.roblox.com/th/games/109069394163925/ver",
-    "verified_role_id": None,
-    "developer_role_id": None,
+    "verified_role_id": 1537125389930074152,
+    "developer_role_id": 1537109884263211018,
     "verified_emoji": "✅",
     "role_ids": {
-        "or": None,
-        "of_low": None,
-        "of_high": None,
+        "or": 1537098607319195698,
+        "of_low": 1538617608813674546,
+        "of_high": 1538617692385312920,
         "guest": None,
     },
     "rank_prefixes": {
@@ -163,7 +163,7 @@ class MyBot(commands.Bot):
         self.add_view(VerifyView())
         self.add_view(ReVerifyView())
         await self.tree.sync()
-        print(f"Multi-Guild Auto-Role Sync System Ready as {self.user}")
+        print(f"Multi-Guild Verification System Ready as {self.user}")
 
 bot = MyBot()
 
@@ -172,13 +172,13 @@ def get_roblox_info_by_name(username):
         response = requests.post(
             "https://users.roblox.com/v1/usernames/users",
             json={"usernames": [username], "excludeBannedUsers": True},
-            timeout=10,
+            timeout=15,
         )
         response.raise_for_status()
         data = response.json()
         if data.get("data"):
             return str(data["data"][0]["id"]), data["data"][0]["name"]
-    except Exception as error:
+    except (requests.RequestException, ValueError) as error:
         print(f"Error fetching Roblox ID: {error}")
     return None, None
 
@@ -186,13 +186,13 @@ def check_group_membership(roblox_id, group_id):
     try:
         response = requests.get(
             f"https://groups.roblox.com/v1/users/{roblox_id}/groups/roles",
-            timeout=10,
+            timeout=15,
         )
         response.raise_for_status()
         for group in response.json().get("data", []):
             if group["group"]["id"] == int(group_id):
                 return True, group["role"]["rank"], group["role"]["name"]
-    except Exception as error:
+    except (requests.RequestException, ValueError, KeyError, TypeError) as error:
         print(f"Error checking group membership: {error}")
     return False, 0, None
 
@@ -223,28 +223,6 @@ def get_prefix_for_rank(rank_val, rank_name, settings):
     }
     return fallback.get(numeric_rank, "")
 
-async def get_or_create_role(guild: discord.Guild, role_key: str, role_name: str, color: discord.Color, settings: dict):
-    role_id = parse_id(settings.get("role_ids", {}).get(role_key)) if role_key in ["or", "of_low", "of_high", "guest"] else parse_id(settings.get(f"{role_key}_role_id"))
-    role = guild.get_role(role_id) if role_id else None
-    
-    if not role:
-        role = discord.utils.get(guild.roles, name=role_name)
-        if not role:
-            try:
-                role = await guild.create_role(name=role_name, color=color, reason="สร้าง Role อัตโนมัติ")
-            except discord.HTTPException as e:
-                print(f"Cannot create role {role_name}: {e}")
-                return None
-        
-        if role_key in ["or", "of_low", "of_high", "guest"]:
-            settings["role_ids"][role_key] = role.id
-        else:
-            settings[f"{role_key}_role_id"] = role.id
-            
-        save_guild_settings(guild.id, settings)
-        
-    return role
-
 async def update_member_status(discord_id, roblox_id, roblox_username, guild_id=None):
     guild = bot.get_guild(int(guild_id)) if guild_id else None
     if guild is None and bot.guilds:
@@ -259,8 +237,6 @@ async def update_member_status(discord_id, roblox_id, roblox_username, guild_id=
         is_in_group, rank_val, rank_name = check_group_membership(roblox_id, settings["roblox_group_id"])
         is_dev = int(roblox_id) in DEVELOPER_IDS
 
-        verified_role = await get_or_create_role(guild, "verified", "Verified", discord.Color.from_rgb(87, 242, 135), settings)
-
         managed_role_ids = {
             parse_id(settings.get("verified_role_id")),
             parse_id(settings.get("developer_role_id")),
@@ -272,39 +248,39 @@ async def update_member_status(discord_id, roblox_id, roblox_username, guild_id=
             role for role in member.roles
             if role != guild.default_role and role.id not in managed_role_ids
         ]
+        verified_role = guild.get_role(parse_id(settings.get("verified_role_id")))
         if verified_role:
             roles_to_add.append(verified_role)
 
         if is_dev:
-            dev_role = await get_or_create_role(guild, "developer", "Developer", discord.Color.purple(), settings)
-            if dev_role: roles_to_add.append(dev_role)
+            developer_role = guild.get_role(parse_id(settings.get("developer_role_id")))
+            if developer_role:
+                roles_to_add.append(developer_role)
             nickname = f"Dev | {roblox_username}"
             display_rank_name = "Developer"
         elif is_in_group:
-            rank_key = None
-            role_title = rank_name or "Military Rank"
-            
             if 1 <= rank_val <= 7:
-                rank_key, role_title = "or", "OR | ชั้นประทวน"
+                rank_role = guild.get_role(parse_id(settings["role_ids"].get("or")))
             elif 8 <= rank_val <= 11:
-                rank_key, role_title = "of_low", "OF Low | สัญญาบัตรต้น"
+                rank_role = guild.get_role(parse_id(settings["role_ids"].get("of_low")))
             elif 12 <= rank_val <= 18:
-                rank_key, role_title = "of_high", "OF High | สัญญาบัตรสูง"
-
-            if rank_key:
-                rank_role = await get_or_create_role(guild, rank_key, role_title, discord.Color.blue(), settings)
-                if rank_role: roles_to_add.append(rank_role)
+                rank_role = guild.get_role(parse_id(settings["role_ids"].get("of_high")))
+            else:
+                rank_role = None
+            if rank_role:
+                roles_to_add.append(rank_role)
 
             prefix = get_prefix_for_rank(rank_val, rank_name, settings)
             nickname = f"{prefix} | {roblox_username}" if prefix else roblox_username
             display_rank_name = rank_name or "ไม่ทราบชื่อยศ"
         else:
-            guest_role = await get_or_create_role(guild, "guest", "Guest", discord.Color.light_grey(), settings)
-            if guest_role: roles_to_add.append(guest_role)
+            guest_role = guild.get_role(parse_id(settings["role_ids"].get("guest")))
+            if guest_role:
+                roles_to_add.append(guest_role)
             nickname = f"Guest | {roblox_username}"
             display_rank_name = "Guest"
 
-        unique_roles = list({role.id: role for role in roles_to_add if role}.values())
+        unique_roles = list({role.id: role for role in roles_to_add}.values())
         await member.edit(roles=unique_roles, nick=nickname[:32])
         return rank_val if not is_dev else 999, member.display_name, display_rank_name, None
     except discord.HTTPException as error:
@@ -331,8 +307,6 @@ class VerifyModal(discord.ui.Modal, title="ศูนย์ยืนยันต�
     )
 
     async def on_submit(self, interaction: discord.Interaction):
-        await interaction.response.defer(ephemeral=True)
-        
         input_name = self.username.value.strip()
         roblox_id, correct_name = get_roblox_info_by_name(input_name)
         
@@ -342,7 +316,7 @@ class VerifyModal(discord.ui.Modal, title="ศูนย์ยืนยันต�
                 description=f"ไม่พบชื่อบัญชี **{input_name}** ในระบบ Roblox กรุณาตรวจสอบการสะกดอีกครั้ง",
                 color=0xED4245
             )
-            await interaction.followup.send(embed=embed, ephemeral=True)
+            await interaction.response.send_message(embed=embed, ephemeral=True)
             return
 
         settings = get_guild_settings(interaction.guild_id)
@@ -356,7 +330,7 @@ class VerifyModal(discord.ui.Modal, title="ศูนย์ยืนยันต�
                 color=0xFEE75C
             )
             embed.add_field(name="🔗 ลิงก์กลุ่ม Roblox", value=f"[คลิกที่นี่เพื่อเข้ากลุ่ม]({settings['roblox_group_url']})")
-            await interaction.followup.send(embed=embed, ephemeral=True)
+            await interaction.response.send_message(embed=embed, ephemeral=True)
             return
 
         update_pending(interaction.user.id, roblox_id, correct_name)
@@ -371,7 +345,7 @@ class VerifyModal(discord.ui.Modal, title="ศูนย์ยืนยันต�
         embed.add_field(name="🚀 ลิงก์แมพยืนยัน", value=f"[เข้าสู่แมพยืนยันตัวตน]({settings['roblox_map_url']})", inline=False)
         embed.set_footer(text="เมื่อเข้าแมพแล้ว ระบบจะอัพเดทยศและเปลี่ยนชื่อให้อัตโนมัติ")
         
-        await interaction.followup.send(embed=embed, ephemeral=True)
+        await interaction.response.send_message(embed=embed, ephemeral=True)
 
 class ReVerifyView(discord.ui.View):
     def __init__(self):
@@ -430,11 +404,9 @@ class VerifyView(discord.ui.View):
     async def start_v_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
         user = get_user(interaction.user.id)
         
+        # ถ้ายืนยันตัวตนในเซิร์ฟหลักแล้ว มาเซิร์ฟรองกดปุ่มจะเปลี่ยนชื่อและใส่ยศของเซิร์ฟรองให้อัตโนมัติ!
         if user and user["verified"]:
-            # ตอบรับทันทีเพื่อป้องกันข้อผิดพลาด "แอปพลิเคชันไม่ตอบสนอง"
-            await interaction.response.defer(ephemeral=True)
             guild_id = interaction.guild.id if interaction.guild else None
-            
             result = await update_member_status(
                 interaction.user.id,
                 user["roblox_id"],
@@ -456,7 +428,7 @@ class VerifyView(discord.ui.View):
                 ),
                 color=0x57F287
             )
-            await interaction.followup.send(embed=embed, view=ReVerifyView(), ephemeral=True)
+            await interaction.response.send_message(embed=embed, view=ReVerifyView(), ephemeral=True)
         else:
             await interaction.response.send_modal(VerifyModal())
 
@@ -496,10 +468,9 @@ class CustomizeAllModal(discord.ui.Modal, title="ปรับแต่งระ�
     )
 
     async def on_submit(self, interaction: discord.Interaction):
-        await interaction.response.defer(ephemeral=True)
         guild_id = interaction.guild_id
         if not guild_id:
-            await interaction.followup.send("❌ คำสั่งนี้ใช้เฉพาะภายในเซิร์ฟเวอร์เท่านั้น", ephemeral=True)
+            await interaction.response.send_message("❌ คำสั่งนี้ใช้เฉพาะภายในเซิร์ฟเวอร์เท่านั้น", ephemeral=True)
             return
 
         settings = get_guild_settings(guild_id)
@@ -536,7 +507,7 @@ class CustomizeAllModal(discord.ui.Modal, title="ปรับแต่งระ�
             description=f"อัพเดทการตั้งค่าระบบสำหรับเซิร์ฟเวอร์ **{interaction.guild.name}** เรียบร้อยค่ะ",
             color=0x57F287
         )
-        await interaction.followup.send(embed=embed, ephemeral=True)
+        await interaction.response.send_message(embed=embed, ephemeral=True)
 
 # =========================
 # SLASH COMMANDS
@@ -544,24 +515,22 @@ class CustomizeAllModal(discord.ui.Modal, title="ปรับแต่งระ�
 @bot.tree.command(name="ยืนยันตัวตน", description="ติดตั้ง Embed ยืนยันตัวตน (Administrator Only)")
 @app_commands.default_permissions(administrator=True)
 async def setup_verify(interaction: discord.Interaction):
-    if not interaction.guild:
-        await interaction.response.send_message("❌ คำสั่งนี้ต้องใช้ภายใน Server เท่านั้น", ephemeral=True)
-        return
-
-    await interaction.response.defer(ephemeral=True)
     settings = get_guild_settings(interaction.guild_id)
     v_emoji = settings.get("verified_emoji", "✅")
     
+    # Embed แบบในรูปตัวอย่าง
     embed = discord.Embed(
         title="✨ ยืนยันตัวตนด้วยปุ่ม ❗",
         description="➡️ **คลิกปุ่มด้านล่างเพื่อเริ่มการยืนยันตัวตนและเข้าสู่เซิร์ฟเวอร์ค่ะ!**",
         color=0x2B2D31
     )
     embed.set_author(name="👾 Powered by Verification System")
+    
+    # รูปภาพ Banner ตรงกลาง (สามารถแก้ไข URL รูปตามต้องการได้)
     embed.set_image(url="https://i.imgur.com/8N4X9pX.png")
     
     await interaction.channel.send(embed=embed, view=VerifyView(v_emoji))
-    await interaction.followup.send("✅ ติดตั้งหน้าต่างยืนยันตัวตนเรียบร้อยแล้วค่ะ", ephemeral=True)
+    await interaction.response.send_message("✅ ติดตั้งหน้าต่างยืนยันตัวตนเรียบร้อยแล้วค่ะ", ephemeral=True)
 
 @bot.tree.command(name="ตั้งค่าอีโมจิ", description="เปลี่ยนอีโมจิกดยืนยันตัวตน")
 @app_commands.default_permissions(administrator=True)
