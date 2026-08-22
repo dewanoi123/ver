@@ -230,10 +230,10 @@ def get_prefix_for_rank(rank_val, rank_name, settings):
 
     rank_aliases = {
         1: {"or-1"}, 2: {"or-2"}, 3: {"or-3"}, 4: {"or-4"}, 5: {"or-5"},
-        6: {"or-6", "or-7"}, 7: {"or-6", "or-7"},
-        8: {"of-1a"}, 9: {"of-1b"}, 10: {"of-2"}, 11: {"of-2"},
-        12: {"of-3"}, 13: {"of-4"}, 14: {"of-5"}, 15: {"of-6"},
-        16: {"of-7"}, 17: {"of-8"}, 18: {"of-9"},
+        6: {"or-6"}, 7: {"or-7"}, 8: {"or-8"}, 9: {"or-9"},
+        10: {"of-d"}, 11: {"of-1a"}, 12: {"of-1b"}, 13: {"of-2"},
+        14: {"of-3"}, 15: {"of-4"}, 16: {"of-5"}, 17: {"of-6"},
+        18: {"of-7"}, 19: {"of-8"}, 20: {"of-9"},
     }
 
     for rank_key, prefix in prefixes.items():
@@ -312,15 +312,15 @@ async def update_member_status(discord_id, roblox_id, roblox_username, guild_id=
             nickname = f"ผู้ดูแลระบบ | {roblox_username}"
             display_rank_name = "Developer"
         elif is_in_group:
-            if 1 <= rank_val <= 10:
+            if 1 <= rank_val <= 9:
                 rank_role = guild.get_role(parse_id(settings["role_ids"].get("or")))
-            elif 11 <= rank_val <= 13:
+            elif 10 <= rank_val <= 13:
                 rank_role = guild.get_role(parse_id(settings["role_ids"].get("cd")))
             elif 14 <= rank_val <= 17:
                 rank_role = guild.get_role(parse_id(settings["role_ids"].get("of_low")))
             elif 18 <= rank_val <= 20:
                 rank_role = guild.get_role(parse_id(settings["role_ids"].get("of_high")))
-            elif (22 <= rank_val <= 23) or rank_val == 32:
+            elif (22 <= rank_val <= 32):
                 rank_role = guild.get_role(parse_id(settings["role_ids"].get("hq")))
             else:
                 rank_role = None
