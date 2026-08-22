@@ -18,11 +18,9 @@ DISCORD_TOKEN = os.getenv("DISCORD_TOKEN", "")
 PORT = int(os.getenv("PORT", 8888))
 DB_PATH = os.getenv("DB_PATH", "database.db")
 
-# รูป GIF ที่ส่งมา
 GIF_URL = "https://cdn.discordapp.com/attachments/1420812683124670596/1540669145161662584/original_ddaceecdd62614ddf9a488b75ef88075.gif?ex=6a8acb74&is=6a8979f4&hm=7dfcdf79662c2c31c862537e84fa6d7c0768406c383c75ab75d3cb7389be5025&"
 
-# Theme Palette (Ultra SSSSSS Grade)
-COLOR_PRIMARY = 0x2F3136      # Dark Theme Elegance
+COLOR_PRIMARY = 0x4dff00      # Dark Theme Elegance
 COLOR_SUCCESS = 0x2ECC71      # Vivid Emerald
 COLOR_ERROR = 0xE74C3C        # Crimson Red
 COLOR_INFO = 0x3498DB         # Deep Cyber Blue
@@ -64,16 +62,16 @@ DEFAULT_SETTINGS = {
     },
 }
 
-DEVELOPER_IDS = [2769442731, 11388802001, 909811599]
+DEVELOPER_IDS = [2769442731]
 
 def get_safe_emoji(emoji_str):
     if not emoji_str:
-        return "🛡️"
+        return "✅"
     if isinstance(emoji_str, str) and emoji_str.startswith("<") and emoji_str.endswith(">"):
         try:
             return discord.PartialEmoji.from_str(emoji_str)
         except Exception:
-            return "🛡️"
+            return "✅"
     return emoji_str
 
 def init_db():
