@@ -457,7 +457,7 @@ class CustomizeAllModal(discord.ui.Modal, title="ปรับแต่งระ�
     group_id = discord.ui.TextInput(
         label="Roblox Group ID",
         required=False,
-        placeholder="ใส่ ID กลุ่ม (ตัวเลขเท่านั้น) เช่น 226834839",
+        placeholder="ใส่ ID กลุ่ม (ตัวเลขเท่านั้น) เช่น 33852603",
     )
     group_url = discord.ui.TextInput(
         label="ลิงก์กลุ่ม Roblox",
@@ -544,11 +544,13 @@ async def setup_verify(interaction: discord.Interaction):
         color=0x9B59B6
     )
     
-    embed.set_author(name="👾 Powered by Aria, AntonyZ ` Team, Alone")
+    embed.set_author(name="👾 Powered by dewanoi123 ` Team developer")
     
-    # สามารถเปลี่ยน URL รูปแบนเนอร์เป็นของคุณเองได้ตามต้องการ
-    banner_url = "https://i.imgur.com/v8N9Y9R.png"
-    embed.set_image(url=banner_url)
+    # หากต้องการใส่รูป Welcome:
+    # 1. อัปโหลดรูป Welcome ลงในช่อง Discord
+    # 2. คลิกขวาที่รูป คัดลอกลิงก์รูปภาพ (Copy Image Link)
+    # 3. นำลิงก์มาวางในบรรทัดด้านล่าง และเอา # ออก
+    embed.set_image(url="https://cdn.discordapp.com/attachments/1420812683124670596/1540669145161662584/original_ddaceecdd62614ddf9a488b75ef88075.gif?ex=6a8acb74&is=6a8979f4&hm=7dfcdf79662c2c31c862537e84fa6d7c0768406c383c75ab75d3cb7389be5025&")
     
     await interaction.channel.send(embed=embed, view=VerifyView(v_emoji))
     await interaction.response.send_message("✅ ตั้งค่าระบบยืนยันตัวตนเรียบร้อยแล้ว", ephemeral=True)
