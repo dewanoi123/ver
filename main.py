@@ -30,7 +30,7 @@ DEFAULT_SETTINGS = {
     "roblox_group_id": 33852603,
     "roblox_group_url": "https://www.roblox.com/groups/33852603",
     "roblox_map_url": "https://www.roblox.com/games/17709721251",
-    "verified_role_id": 1420812478023204995,
+    "verified_role_id": 1540716342120939550,
     "developer_role_id": 1420812428740133016,
     "verified_emoji": "✅",
     "role_ids": {
