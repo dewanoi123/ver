@@ -18,6 +18,9 @@ DISCORD_TOKEN = os.getenv("DISCORD_TOKEN", "")
 PORT = int(os.getenv("PORT", 8888))
 DB_PATH = os.getenv("DB_PATH", "database.db")
 
+# รูป GIF ที่ส่งมา
+GIF_URL = "https://cdn.discordapp.com/attachments/1420812683124670596/1540669145161662584/original_ddaceecdd62614ddf9a488b75ef88075.gif?ex=6a8acb74&is=6a8979f4&hm=7dfcdf79662c2c31c862537e84fa6d7c0768406c383c75ab75d3cb7389be5025&"
+
 # Theme Palette (Ultra SSSSSS Grade)
 COLOR_PRIMARY = 0x2F3136      # Dark Theme Elegance
 COLOR_SUCCESS = 0x2ECC71      # Vivid Emerald
@@ -448,6 +451,7 @@ class VerifyView(discord.ui.View):
             embed.add_field(name="👤 Roblox Username", value=f"```{user['roblox_username']}```", inline=True)
             embed.add_field(name="🆔 Roblox ID", value=f"```{user['roblox_id']}```", inline=True)
             embed.add_field(name="⚡ สถานะ", value=f"```{safe_v_emoji} Verified```", inline=False)
+            embed.set_image(url=GIF_URL)  # ใส่ GIF ตกแต่ง
             embed.set_footer(text="Verification Panel • Ultra SSSSSS")
             await interaction.response.send_message(embed=embed, view=ReVerifyView(), ephemeral=True)
         else:
@@ -554,6 +558,8 @@ async def setup_verify(interaction: discord.Interaction):
     if interaction.guild and interaction.guild.icon:
         embed.set_thumbnail(url=interaction.guild.icon.url)
     
+    # กำหนด GIF ที่แนบมาลงใน Embed ประกาศหลัก
+    embed.set_image(url=GIF_URL)
     embed.set_footer(text="Roblox Verification Management System • Ultra SSSSSS")
     
     await interaction.channel.send(embed=embed, view=VerifyView(v_emoji))
