@@ -317,7 +317,7 @@ async def update_member_status(discord_id, roblox_id, roblox_username, guild_id=
                 rank_role = guild.get_role(parse_id(settings["role_ids"].get("of_low")))
             elif 12 <= rank_val <= 20:
                 rank_role = guild.get_role(parse_id(settings["role_ids"].get("of_high")))
-            elif (22 <= rank_val <= 23) or rank_val == 28:
+            elif (22 <= rank_val <= 23) or rank_val == 32:
                 # DPM, PM และ Field Marshal (Rank 28) จะได้ยศ HQ
                 rank_role = guild.get_role(parse_id(settings["role_ids"].get("hq")))
             else:
@@ -375,7 +375,7 @@ class VerifyModal(discord.ui.Modal, title="⚡ ยืนยันตัวตน
                 description=f"ไม่พบบัญชี Roblox ชื่อ **`{input_name}`** โปรดตรวจสอบตัวอักษรและลองใหม่อีกครั้ง",
                 color=COLOR_ERROR
             )
-            embed.set_footer(text="Verification System • Ultra SSSSSS")
+            embed.set_footer(text="Verification System • Dev by : dewanoi123")
             await interaction.response.send_message(embed=embed, ephemeral=True)
             return
 
@@ -390,7 +390,7 @@ class VerifyModal(discord.ui.Modal, title="⚡ ยืนยันตัวตน
                 color=COLOR_ERROR
             )
             embed.add_field(name="🔗 ลิงก์กลุ่ม", value=f"[คลิกที่นี่เพื่อเข้ากลุ่ม Roblox]({settings['roblox_group_url']})", inline=False)
-            embed.set_footer(text="Verification System • Ultra SSSSSS")
+            embed.set_footer(text="Verification System • Dev by : dewanoi123")
             await interaction.response.send_message(embed=embed, ephemeral=True)
             try:
                 await interaction.user.send(
@@ -498,7 +498,7 @@ class VerifyView(discord.ui.View):
             embed.add_field(name="🆔 Roblox ID", value=f"```{user['roblox_id']}```", inline=True)
             embed.add_field(name="⚡ สถานะ", value=f"```{safe_v_emoji} Verified```", inline=False)
             embed.set_image(url=GIF_URL) 
-            embed.set_footer(text="Verification Panel • Ultra SSSSSS")
+            embed.set_footer(text="Verification Panel • Dev by : dewanoi123")
             await interaction.response.send_message(embed=embed, view=ReVerifyView(), ephemeral=True)
         else:
             await interaction.response.send_modal(VerifyModal())
@@ -765,7 +765,7 @@ async def show_settings(interaction: discord.Interaction):
         value=prefixes_str[:1024] if prefixes_str else "*ไม่มีข้อมูล*",
         inline=False
     )
-    embed.set_footer(text="Configuration Panel • Ultra SSSSSS")
+    embed.set_footer(text="Configuration Panel • Dev by : dewanoi123")
     await interaction.response.send_message(embed=embed, ephemeral=True)
 
 # =========================
