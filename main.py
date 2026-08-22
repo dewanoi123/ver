@@ -315,7 +315,7 @@ async def update_member_status(discord_id, roblox_id, roblox_username, guild_id=
             if 1 <= rank_val <= 10:
                 rank_role = guild.get_role(parse_id(settings["role_ids"].get("or")))
             elif 11 <= rank_val <= 13:
-                rank_role = guild.get_role(parse_id(settings["role_ids"].get("of_low")))
+                rank_role = guild.get_role(parse_id(settings["role_ids"].get("cd")))
             elif 14 <= rank_val <= 17:
                 rank_role = guild.get_role(parse_id(settings["role_ids"].get("of_low")))
             elif 18 <= rank_val <= 20:
@@ -531,7 +531,7 @@ class CustomizeAllModal(discord.ui.Modal, title="⚙️ ปรับแต่ง
         label="Role IDs (แยกด้วย ;)",
         required=False,
         style=discord.TextStyle.paragraph,
-        placeholder="verified=ID; or=ID; of_low=ID; of_high=ID; hq=ID; guest=ID",
+        placeholder="verified=ID; or=ID; cd=ID; of_low=ID; of_high=ID; hq=ID; guest=ID",
     )
 
     async def on_submit(self, interaction: discord.Interaction):
@@ -573,7 +573,7 @@ class CustomizeAllModal(discord.ui.Modal, title="⚙️ ปรับแต่ง
                 
                 if rtype in {"verified", "developer"}:
                     settings[f"{rtype}_role_id"] = rid
-                elif rtype in {"or", "of_low", "of_high", "hq", "guest"}:
+                elif rtype in {"or", "cd", "of_low", "of_high", "hq", "guest"}:
                     settings["role_ids"][rtype] = rid
 
         save_guild_settings(guild_id, settings)
@@ -670,6 +670,7 @@ async def reset_db_legacy(interaction: discord.Interaction):
         app_commands.Choice(name="ยืนยันตัวตน", value="verified"),
         app_commands.Choice(name="Developer", value="developer"),
         app_commands.Choice(name="OR", value="or"),
+        app_commands.Choice(name="CD(นายร้อย)", value="cd"),
         app_commands.Choice(name="OF Low", value="of_low"),
         app_commands.Choice(name="OF High", value="of_high"),
         app_commands.Choice(name="กองบัญชาการ (HQ)", value="hq"),
@@ -754,6 +755,7 @@ async def show_settings(interaction: discord.Interaction):
     
     roles_fmt = (
         f"• **OR:** `{role_ids.get('or')}`\n"
+        f"• **CD (นายร้อย):** `{role_ids.get('cd')}`\n"
         f"• **OF Low:** `{role_ids.get('of_low')}`\n"
         f"• **OF High:** `{role_ids.get('of_high')}`\n"
         f"• **HQ (กองบัญชาการ):** `{role_ids.get('hq')}`\n"
