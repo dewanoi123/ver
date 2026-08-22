@@ -35,9 +35,10 @@ DEFAULT_SETTINGS = {
     "verified_emoji": "✅",
     "role_ids": {
         "or": 1537098607319195698,
-        "of_low": 1538617608813674546,
-        "of_high": 1538617692385312920,
-        "hq": 1540680732597428255,     # กองบัญชาการ
+        "cd": 1420812474227101707,
+        "of_low": 1420812472616751278,
+        "of_high": 1420812470905213019,
+        "hq": 1420812465775710354,     # กองบัญชาการ
         "guest": None,
     },
     "rank_prefixes": {
@@ -311,14 +312,15 @@ async def update_member_status(discord_id, roblox_id, roblox_username, guild_id=
             nickname = f"ผู้ดูแลระบบ | {roblox_username}"
             display_rank_name = "Developer"
         elif is_in_group:
-            if 1 <= rank_val <= 7:
+            if 1 <= rank_val <= 10:
                 rank_role = guild.get_role(parse_id(settings["role_ids"].get("or")))
-            elif 8 <= rank_val <= 11:
+            elif 11 <= rank_val <= 13:
                 rank_role = guild.get_role(parse_id(settings["role_ids"].get("of_low")))
-            elif 12 <= rank_val <= 20:
+            elif 14 <= rank_val <= 17:
+                rank_role = guild.get_role(parse_id(settings["role_ids"].get("of_low")))
+            elif 18 <= rank_val <= 20:
                 rank_role = guild.get_role(parse_id(settings["role_ids"].get("of_high")))
             elif (22 <= rank_val <= 23) or rank_val == 32:
-                # DPM, PM และ Field Marshal (Rank 28) จะได้ยศ HQ
                 rank_role = guild.get_role(parse_id(settings["role_ids"].get("hq")))
             else:
                 rank_role = None
