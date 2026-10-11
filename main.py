@@ -15,7 +15,7 @@ from contextlib import asynccontextmanager
 # CONFIGURATION
 # =========================
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN", "")
-PORT = int(os.getenv("PORT", 8888))
+PORT = int(os.getenv("SERVER_PORT") or os.getenv("PORT") or 8888)
 DB_PATH = os.getenv("DB_PATH", "database.db")
 
 GIF_URL = "https://cdn.discordapp.com/attachments/1420812683124670596/1540669145161662584/original_ddaceecdd62614ddf9a488b75ef88075.gif?ex=6a8acb74&is=6a8979f4&hm=7dfcdf79662c2c31c862537e84fa6d7c0768406c383c75ab75d3cb7389be5025&"
@@ -846,4 +846,4 @@ async def verify_endpoint(request: Request):
     return {"ok": False, "message": err_msg or "บอทไม่มีสิทธิ์เปลี่ยนยศหรือไม่พบเซิร์ฟเวอร์ Discord"}
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="127.0.0.1", port=PORT)
+    uvicorn.run(app, host="0.0.0.0", port=PORT)
