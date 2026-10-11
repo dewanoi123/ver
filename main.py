@@ -14,7 +14,6 @@ from fastapi import FastAPI, Request
 # CONFIGURATION
 # =========================
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN", "")
-# อ่าน SERVER_PORT จาก Bot Hosting
 PORT = int(os.getenv("SERVER_PORT") or os.getenv("PORT") or 8888)
 DB_PATH = os.getenv("DB_PATH", "database.db")
 
@@ -806,10 +805,16 @@ async def verify_endpoint(request: Request):
                 """,
                 (str(roblox_id), roblox_username, row["discord_id"]),
             )
+            
+        settings = get_guild_settings(guild_id)
+        prefix = get_prefix_for_rank(rank, rank_name, settings)
+
         return {
             "ok": True,
             "discord_username": display_name,
+            "discord_id": str(row["discord_id"]),
             "current_rank": rank_name,
+            "rank_prefix": prefix or "ไม่มี"
         }
 
     return {"ok": False, "message": err_msg or "บอทไม่มีสิทธิ์เปลี่ยนยศหรือไม่พบเซิร์ฟเวอร์ Discord"}
