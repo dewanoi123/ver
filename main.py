@@ -9,12 +9,12 @@ import uvicorn
 from discord.ext import commands
 from discord import app_commands
 from fastapi import FastAPI, Request
-from contextlib import asynccontextmanager
 
 # =========================
 # CONFIGURATION
 # =========================
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN", "")
+# ดึง SERVER_PORT ของ Bot Hosting หากไม่มีให้ถอยไปใช้ PORT หรือ 8888
 PORT = int(os.getenv("SERVER_PORT") or os.getenv("PORT") or 8888)
 DB_PATH = os.getenv("DB_PATH", "database.db")
 
@@ -42,7 +42,6 @@ DEFAULT_SETTINGS = {
         "guest": None,
     },
     "rank_prefixes": {
-        # --- ชั้นประทวน (OR-1 ถึง OR-9) ---
         "or-1": "OR-1, PVT",
         "or-2": "OR-2, PFC",
         "or-3": "OR-3, LCPL",
@@ -52,8 +51,6 @@ DEFAULT_SETTINGS = {
         "or-7": "OR-7, SM2",
         "or-8": "OR-8, SM1",
         "or-9": "OR-9, SMS",
-
-        # --- นายทหารสัญญาบัตร (OF-D ถึง OF-9) ---
         "of-d": "OF-D, ACO",
         "of-1a": "OF-1A, 2LT",
         "of-1b": "OF-1B, 1LT",
@@ -65,8 +62,6 @@ DEFAULT_SETTINGS = {
         "of-7": "OF-7, MG",
         "of-8": "OF-8, LTG",
         "of-9": "OF-9, GEN",
-
-        # --- การเมือง / จอมพล / ราชวงศ์ ---
         "deputy prime minister": "DPM",
         "prime minister": "PM",
         "mom rajawongse": "M.R.",
@@ -242,37 +237,13 @@ def get_prefix_for_rank(rank_val, rank_name, settings):
             return str(prefix).strip()
         
     fallback = {
-        1: "OR-1, PVT",
-        2: "OR-2, PFC",
-        3: "OR-3, LCPL",
-        4: "OR-4, CPL",
-        5: "OR-5, SGT",
-        6: "OR-6, SM3",
-        7: "OR-7, SM2",
-        8: "OR-8, SM1",
-        9: "OR-9, SMS",
-        10: "OF-D, ACO",
-        11: "OF-1A, 2LT",
-        12: "OF-1B, 1LT",
-        13: "OF-2, CPT",
-        14: "OF-3, MAJ",
-        15: "OF-4, LTC",
-        16: "OF-5, COL",
-        17: "OF-6, SRCOL",
-        18: "OF-7, MG",
-        19: "OF-8, LTG",
-        20: "OF-9, GEN",
-        22: "DPM",
-        23: "PM",
-        24: "M.R.",
-        25: "H.S.H. Prince",
-        26: "H.H. Princess",
-        27: "H.R.H. Prince",
-        28: "OF-10, FMS",
-        29: "Protectorate",
-        30: "Crown Prince",
-        31: "H.M. Queen",
-        32: "H.M. King"
+        1: "OR-1, PVT", 2: "OR-2, PFC", 3: "OR-3, LCPL", 4: "OR-4, CPL", 5: "OR-5, SGT",
+        6: "OR-6, SM3", 7: "OR-7, SM2", 8: "OR-8, SM1", 9: "OR-9, SMS", 10: "OF-D, ACO",
+        11: "OF-1A, 2LT", 12: "OF-1B, 1LT", 13: "OF-2, CPT", 14: "OF-3, MAJ", 15: "OF-4, LTC",
+        16: "OF-5, COL", 17: "OF-6, SRCOL", 18: "OF-7, MG", 19: "OF-8, LTG", 20: "OF-9, GEN",
+        22: "DPM", 23: "PM", 24: "M.R.", 25: "H.S.H. Prince", 26: "H.H. Princess",
+        27: "H.R.H. Prince", 28: "OF-10, FMS", 29: "Protectorate", 30: "Crown Prince",
+        31: "H.M. Queen", 32: "H.M. King"
     }
     return fallback.get(numeric_rank, "")
 
@@ -356,7 +327,7 @@ async def update_member_status(discord_id, roblox_id, roblox_username, guild_id=
         return None, None, None, msg
 
 # =========================
-# ULTRA SSSSSS UI COMPONENTS
+# UI COMPONENTS
 # =========================
 class VerifyModal(discord.ui.Modal, title="⚡ ยืนยันตัวตน ROBLOX"):
     username = discord.ui.TextInput(
@@ -777,14 +748,7 @@ async def show_settings(interaction: discord.Interaction):
 # =========================
 # FASTAPI WEBHOOK
 # =========================
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    init_db()
-    asyncio.create_task(bot.start(DISCORD_TOKEN))
-    yield
-    await bot.close()
-
-app = FastAPI(lifespan=lifespan)
+app = FastAPI()
 
 @app.post("/verify")
 async def verify_endpoint(request: Request):
@@ -845,5 +809,23 @@ async def verify_endpoint(request: Request):
 
     return {"ok": False, "message": err_msg or "บอทไม่มีสิทธิ์เปลี่ยนยศหรือไม่พบเซิร์ฟเวอร์ Discord"}
 
+# =========================
+# ASYNC MAIN RUNNER
+# =========================
+async def main():
+    init_db()
+    
+    # ตั้งค่า Uvicorn Server
+    config = uvicorn.Config(app=app, host="0.0.0.0", port=PORT, log_level="info")
+    server = uvicorn.Server(config)
+    
+    print(f"Starting Web Server on 0.0.0.0:{PORT} and Discord Bot simultaneously...")
+    
+    # รันทั้ง Web Server และ Discord Bot ใน Event Loop เดียวกัน
+    await asyncio.gather(
+        server.serve(),
+        bot.start(DISCORD_TOKEN)
+    )
+
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=PORT)
+    asyncio.run(main())
