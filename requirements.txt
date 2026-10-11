@@ -1,5 +1,5 @@
 discord.py
 fastapi
-uvicorn
+uvicorn[standard]
 requests
 httpx
