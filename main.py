@@ -14,7 +14,7 @@ from fastapi import FastAPI, Request
 # CONFIGURATION
 # =========================
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN", "")
-# ดึง SERVER_PORT ของ Bot Hosting หากไม่มีให้ถอยไปใช้ PORT หรือ 8888
+# อ่าน SERVER_PORT จาก Bot Hosting
 PORT = int(os.getenv("SERVER_PORT") or os.getenv("PORT") or 8888)
 DB_PATH = os.getenv("DB_PATH", "database.db")
 
@@ -750,6 +750,11 @@ async def show_settings(interaction: discord.Interaction):
 # =========================
 app = FastAPI()
 
+@app.on_event("startup")
+async def startup_event():
+    init_db()
+    asyncio.create_task(bot.start(DISCORD_TOKEN))
+
 @app.post("/verify")
 async def verify_endpoint(request: Request):
     data = await request.json()
@@ -810,22 +815,7 @@ async def verify_endpoint(request: Request):
     return {"ok": False, "message": err_msg or "บอทไม่มีสิทธิ์เปลี่ยนยศหรือไม่พบเซิร์ฟเวอร์ Discord"}
 
 # =========================
-# ASYNC MAIN RUNNER
+# MAIN ENTRYPOINT
 # =========================
-async def main():
-    init_db()
-    
-    # ตั้งค่า Uvicorn Server
-    config = uvicorn.Config(app=app, host="0.0.0.0", port=PORT, log_level="info")
-    server = uvicorn.Server(config)
-    
-    print(f"Starting Web Server on 0.0.0.0:{PORT} and Discord Bot simultaneously...")
-    
-    # รันทั้ง Web Server และ Discord Bot ใน Event Loop เดียวกัน
-    await asyncio.gather(
-        server.serve(),
-        bot.start(DISCORD_TOKEN)
-    )
-
 if __name__ == "__main__":
-    asyncio.run(main())
+    uvicorn.run("main:app", host="0.0.0.0", port=PORT, reload=False)
