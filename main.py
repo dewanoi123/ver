@@ -16,6 +16,7 @@ from fastapi import FastAPI, Request
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN", "")
 PORT = int(os.getenv("SERVER_PORT") or os.getenv("PORT") or 8888)
 DB_PATH = os.getenv("DB_PATH", "database.db")
+MAIN_GUILD_ID_ENV = os.getenv("MAIN_GUILD_ID", None)
 
 GIF_URL = "https://cdn.discordapp.com/attachments/1420812683124670596/1540669145161662584/original_ddaceecdd62614ddf9a488b75ef88075.gif?ex=6a8acb74&is=6a8979f4&hm=7dfcdf79662c2c31c862537e84fa6d7c0768406c383c75ab75d3cb7389be5025&"
 
@@ -108,6 +109,39 @@ def init_db():
             )
             """
         )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS global_config (
+                key TEXT PRIMARY KEY,
+                value TEXT
+            )
+            """
+        )
+
+def get_main_guild_id():
+    if MAIN_GUILD_ID_ENV:
+        return str(MAIN_GUILD_ID_ENV)
+    with sqlite3.connect(DB_PATH) as conn:
+        cursor = conn.execute("SELECT value FROM global_config WHERE key = 'main_guild_id'")
+        row = cursor.fetchone()
+        return row[0] if row else None
+
+def set_main_guild_id(guild_id):
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.execute(
+            """
+            INSERT INTO global_config (key, value)
+            VALUES ('main_guild_id', ?)
+            ON CONFLICT(key) DO UPDATE SET value = excluded.value
+            """,
+            (str(guild_id),)
+        )
+
+def is_main_guild(guild_id):
+    main_id = get_main_guild_id()
+    if not main_id:
+        return True
+    return str(guild_id) == str(main_id)
 
 def get_guild_settings(guild_id):
     if not guild_id:
@@ -118,6 +152,15 @@ def get_guild_settings(guild_id):
         row = cursor.fetchone()
         
     settings = json.loads(json.dumps(DEFAULT_SETTINGS))
+    
+    main_id = get_main_guild_id()
+    if main_id and str(guild_id) != str(main_id):
+        main_settings = get_guild_settings(main_id)
+        settings["roblox_group_id"] = main_settings.get("roblox_group_id", settings["roblox_group_id"])
+        settings["roblox_group_url"] = main_settings.get("roblox_group_url", settings["roblox_group_url"])
+        settings["roblox_map_url"] = main_settings.get("roblox_map_url", settings["roblox_map_url"])
+        settings["rank_prefixes"] = main_settings.get("rank_prefixes", settings["rank_prefixes"])
+
     if row:
         try:
             saved = json.loads(row[0])
@@ -125,7 +168,7 @@ def get_guild_settings(guild_id):
                 settings.update({k: v for k, v in saved.items() if k not in {"role_ids", "rank_prefixes"}})
                 if isinstance(saved.get("role_ids"), dict):
                     settings["role_ids"].update(saved["role_ids"])
-                if isinstance(saved.get("rank_prefixes"), dict):
+                if isinstance(saved.get("rank_prefixes"), dict) and (not main_id or str(guild_id) == str(main_id)):
                     settings["rank_prefixes"].update(saved["rank_prefixes"])
         except Exception as e:
             print(f"Error parsing settings for guild {guild_id}: {e}")
@@ -439,6 +482,14 @@ class ReVerifyView(discord.ui.View):
 
     @discord.ui.button(label="เปลี่ยน Account", style=discord.ButtonStyle.secondary, emoji="🔁", custom_id="change_acc")
     async def change_acc(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if not is_main_guild(interaction.guild_id):
+            embed = discord.Embed(
+                title="🚫 ไม่อนุญาต",
+                description="การเปลี่ยนบัญชีต้องทำที่เซิร์ฟเวอร์หลักเท่านั้น",
+                color=COLOR_ERROR
+            )
+            await interaction.response.send_message(embed=embed, ephemeral=True)
+            return
         await interaction.response.send_modal(VerifyModal())
 
 class VerifyView(discord.ui.View):
@@ -456,23 +507,46 @@ class VerifyView(discord.ui.View):
     )
     async def start_v_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
         user = get_user(interaction.user.id)
+        
         if user and user["verified"]:
-            settings = get_guild_settings(interaction.guild_id)
+            guild_id = interaction.guild_id
+            
+            rank_val, display_name, rank_name, err_msg = await update_member_status(
+                interaction.user.id,
+                user["roblox_id"],
+                user["roblox_username"],
+                guild_id
+            )
+            
+            settings = get_guild_settings(guild_id)
             v_emoji = settings.get("verified_emoji", "✅")
             safe_v_emoji = get_safe_emoji(v_emoji)
             
             embed = discord.Embed(
-                title="✅ บัญชีนี้ได้รับการยืนยันตัวตนแล้ว",
-                description="คุณมีข้อมูลผูกไว้กับระบบเรียบร้อยแล้ว หากต้องการอัพเดทยศหรือเปลี่ยนบัญชี เลือกปุ่มด้านล่าง",
-                color=COLOR_INFO
+                title="✅ ยืนยันตัวตนสำเร็จ / Sync ข้อมูลแล้ว",
+                description="คุณเคยยืนยันตัวตนในเซิร์ฟเวอร์หลักแล้ว ระบบได้ทำการซิงค์ยศและปรับเปลี่ยนชื่อให้อัตโนมัติ",
+                color=COLOR_SUCCESS if rank_val is not None else COLOR_INFO
             )
             embed.add_field(name="👤 Roblox Username", value=f"```{user['roblox_username']}```", inline=True)
             embed.add_field(name="🆔 Roblox ID", value=f"```{user['roblox_id']}```", inline=True)
             embed.add_field(name="⚡ สถานะ", value=f"```{safe_v_emoji} Verified```", inline=False)
+            
+            if err_msg:
+                embed.add_field(name="⚠️ หมายเหตุการปรับยศ", value=f"```{err_msg}```", inline=False)
+                
             embed.set_image(url=GIF_URL) 
             embed.set_footer(text="Verification Panel • Dev by : dewanoi123")
             await interaction.response.send_message(embed=embed, view=ReVerifyView(), ephemeral=True)
         else:
+            if not is_main_guild(interaction.guild_id):
+                embed = discord.Embed(
+                    title="⚠️ กรุณายืนยันตัวตนในเซิร์ฟเวอร์หลักก่อน",
+                    description="คุณยังไม่เคยทำการยืนยันตัวตนในเซิร์ฟเวอร์หลัก กรุณาไปทำการยืนยันตัวตนและเข้าเกมในเซิร์ฟเวอร์หลักก่อน หลังจากนั้นจึงจะสามารถมากดยืนยันในเซิร์ฟเวอร์นี้ได้ครับ",
+                    color=COLOR_ERROR
+                )
+                await interaction.response.send_message(embed=embed, ephemeral=True)
+                return
+            
             await interaction.response.send_modal(VerifyModal())
 
 class CustomizeAllModal(discord.ui.Modal, title="⚙️ ปรับแต่งระบบทั้งหมด"):
@@ -557,9 +631,14 @@ class CustomizeAllModal(discord.ui.Modal, title="⚙️ ปรับแต่ง
 # =========================
 # SLASH COMMANDS
 # =========================
+
+# 1. คำสั่งที่เซิร์ฟเวอร์รองใช้ได้
 @bot.tree.command(name="ยืนยันตัวตน", description="ตั้งค่าระบบยืนยันตัวตน (Administrator Only)")
 @app_commands.default_permissions(administrator=True)
 async def setup_verify(interaction: discord.Interaction):
+    if not get_main_guild_id():
+        set_main_guild_id(interaction.guild_id)
+        
     settings = get_guild_settings(interaction.guild_id)
     v_emoji = settings.get("verified_emoji", "✅")
     
@@ -590,47 +669,7 @@ async def setup_verify(interaction: discord.Interaction):
     )
     await interaction.response.send_message(embed=confirm_embed, ephemeral=True)
 
-@bot.tree.command(name="ตั้งค่าอีโมจิ", description="เปลี่ยนอีโมจิกดยืนยันตัวตนของเซิร์ฟเวอร์นี้ (Administrator Only)")
-@app_commands.default_permissions(administrator=True)
-@app_commands.describe(อีโมจิ="ใส่อีโมจิธรรมดา หรือ Custom Emoji เช่น <:name:ID>")
-async def set_emoji(interaction: discord.Interaction, อีโมจิ: str):
-    if not interaction.guild_id:
-        embed = discord.Embed(title="❌ เกิดข้อผิดพลาด", description="คำสั่งนี้ต้องใช้ภายใน Server เท่านั้น", color=COLOR_ERROR)
-        await interaction.response.send_message(embed=embed, ephemeral=True)
-        return
-
-    settings = get_guild_settings(interaction.guild_id)
-    settings["verified_emoji"] = อีโมจิ.strip()
-    save_guild_settings(interaction.guild_id, settings)
-
-    safe_e = get_safe_emoji(settings["verified_emoji"])
-    embed = discord.Embed(
-        title="🎨 อัพเดทอีโมจิสำเร็จ",
-        description=f"เปลี่ยนอีโมจิยืนยันตัวตนเป็น {safe_e} เรียบร้อยแล้ว\n\n*(พิมพ์ `/ยืนยันตัวตน` อีกครั้งเพื่อส่งปุ่มด้วยอีโมจิใหม่)*",
-        color=COLOR_SUCCESS
-    )
-    await interaction.response.send_message(embed=embed, ephemeral=True)
-
-async def clear_verification_data(interaction: discord.Interaction):
-    with sqlite3.connect(DB_PATH) as conn:
-        conn.execute("DELETE FROM users")
-    embed = discord.Embed(
-        title="⚠️ ล้างข้อมูลสำเร็จ",
-        description="ลบข้อมูลการยืนยันตัวตนทั้งหมดในระบบแล้ว ผู้ใช้ทุกคนจะต้องทำการยืนยันตัวตนใหม่",
-        color=COLOR_ACCENT
-    )
-    await interaction.response.send_message(embed=embed, ephemeral=True)
-
-@bot.tree.command(name="ล้างข้อมูล", description="ลบข้อมูลการยืนยันตัวตนทุกคน")
-@app_commands.default_permissions(administrator=True)
-async def reset_db_short(interaction: discord.Interaction):
-    await clear_verification_data(interaction)
-
-@bot.tree.command(name="ล้างข้อมูลทั้งหมด", description="ลบข้อมูลการยืนยันตัวตนทุกคน (คำสั่งเดิม)")
-@app_commands.default_permissions(administrator=True)
-async def reset_db_legacy(interaction: discord.Interaction):
-    await clear_verification_data(interaction)
-
+# 2. คำสั่งที่เซิร์ฟเวอร์รองใช้ได้
 @bot.tree.command(name="ใส่โรล", description="ตั้งค่า Role ให้กับประเภทที่เลือกของเซิร์ฟเวอร์นี้")
 @app_commands.default_permissions(administrator=True)
 @app_commands.describe(
@@ -670,15 +709,66 @@ async def set_role(interaction: discord.Interaction, ประเภท: app_com
     )
     await interaction.response.send_message(embed=embed, ephemeral=True)
 
-@bot.tree.command(name="ใส่คำนำหน้า", description="เพิ่มหรือแก้คำนำหน้าตามชื่อยศ Roblox ของเซิร์ฟเวอร์นี้")
+# 3. คำสั่งที่เซิร์ฟเวอร์รองใช้ได้
+@bot.tree.command(name="ตั้งค่าอีโมจิ", description="เปลี่ยนอีโมจิกดยืนยันตัวตนของเซิร์ฟเวอร์นี้ (Administrator Only)")
+@app_commands.default_permissions(administrator=True)
+@app_commands.describe(อีโมจิ="ใส่อีโมจิธรรมดา หรือ Custom Emoji เช่น <:name:ID>")
+async def set_emoji(interaction: discord.Interaction, อีโมจิ: str):
+    if not interaction.guild_id:
+        embed = discord.Embed(title="❌ เกิดข้อผิดพลาด", description="คำสั่งนี้ต้องใช้ภายใน Server เท่านั้น", color=COLOR_ERROR)
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+        return
+
+    settings = get_guild_settings(interaction.guild_id)
+    settings["verified_emoji"] = อีโมจิ.strip()
+    save_guild_settings(interaction.guild_id, settings)
+
+    safe_e = get_safe_emoji(settings["verified_emoji"])
+    embed = discord.Embed(
+        title="🎨 อัพเดทอีโมจิสำเร็จ",
+        description=f"เปลี่ยนอีโมจิยืนยันตัวตนเป็น {safe_e} เรียบร้อยแล้ว\n\n*(พิมพ์ `/ยืนยันตัวตน` อีกครั้งเพื่อส่งปุ่มด้วยอีโมจิใหม่)*",
+        color=COLOR_SUCCESS
+    )
+    await interaction.response.send_message(embed=embed, ephemeral=True)
+
+# -------------------------------------------------------------
+# คำสั่งด้านล่างนี้สงวนสิทธิ์ให้ใช้ได้ "เฉพาะเซิร์ฟเวอร์หลักเท่านั้น"
+# -------------------------------------------------------------
+
+async def clear_verification_data(interaction: discord.Interaction):
+    if not is_main_guild(interaction.guild_id):
+        embed = discord.Embed(title="🚫 ไม่อนุญาต", description="คำสั่งนี้ใช้ได้เฉพาะเซิร์ฟเวอร์หลักเท่านั้น", color=COLOR_ERROR)
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+        return
+
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.execute("DELETE FROM users")
+    embed = discord.Embed(
+        title="⚠️ ล้างข้อมูลสำเร็จ",
+        description="ลบข้อมูลการยืนยันตัวตนทั้งหมดในระบบแล้ว ผู้ใช้ทุกคนจะต้องทำการยืนยันตัวตนใหม่",
+        color=COLOR_ACCENT
+    )
+    await interaction.response.send_message(embed=embed, ephemeral=True)
+
+@bot.tree.command(name="ล้างข้อมูล", description="ลบข้อมูลการยืนยันตัวตนทุกคน (ใช้ได้เฉพาะเซิร์ฟเวอร์หลัก)")
+@app_commands.default_permissions(administrator=True)
+async def reset_db_short(interaction: discord.Interaction):
+    await clear_verification_data(interaction)
+
+@bot.tree.command(name="ล้างข้อมูลทั้งหมด", description="ลบข้อมูลการยืนยันตัวตนทุกคน (ใช้ได้เฉพาะเซิร์ฟเวอร์หลัก)")
+@app_commands.default_permissions(administrator=True)
+async def reset_db_legacy(interaction: discord.Interaction):
+    await clear_verification_data(interaction)
+
+@bot.tree.command(name="ใส่คำนำหน้า", description="เพิ่มหรือแก้คำนำหน้าตามชื่อยศ Roblox (ใช้ได้เฉพาะเซิร์ฟเวอร์หลัก)")
 @app_commands.default_permissions(administrator=True)
 @app_commands.describe(
     ยศ="รหัสยศ เช่น OF-3 หรือ OR-1 ต้องตรงหรือเป็นส่วนหนึ่งของชื่อยศ Roblox",
     คำนำหน้า="ชื่อคำนำหน้า เช่น MAJ หรือ PC",
 )
 async def set_prefix(interaction: discord.Interaction, ยศ: str, คำนำหน้า: str):
-    if not interaction.guild_id:
-        embed = discord.Embed(title="❌ เกิดข้อผิดพลาด", description="คำสั่งนี้ต้องใช้ภายใน Server เท่านั้น", color=COLOR_ERROR)
+    if not is_main_guild(interaction.guild_id):
+        embed = discord.Embed(title="🚫 ไม่อนุญาต", description="คำสั่งนี้ใช้ได้เฉพาะเซิร์ฟเวอร์หลักเท่านั้น", color=COLOR_ERROR)
         await interaction.response.send_message(embed=embed, ephemeral=True)
         return
 
@@ -700,16 +790,20 @@ async def set_prefix(interaction: discord.Interaction, ยศ: str, คำนำ
     )
     await interaction.response.send_message(embed=embed, ephemeral=True)
 
-@bot.tree.command(name="ปรับแต่งทั้งหมด", description="เปิดหน้าต่างปรับแต่งระบบกลุ่ม โรล และคำนำหน้าของเซิร์ฟเวอร์นี้")
+@bot.tree.command(name="ปรับแต่งทั้งหมด", description="เปิดหน้าต่างปรับแต่งระบบกลุ่ม โรล และคำนำหน้า (ใช้ได้เฉพาะเซิร์ฟเวอร์หลัก)")
 @app_commands.default_permissions(administrator=True)
 async def customize_all(interaction: discord.Interaction):
+    if not is_main_guild(interaction.guild_id):
+        embed = discord.Embed(title="🚫 ไม่อนุญาต", description="คำสั่งนี้ใช้ได้เฉพาะเซิร์ฟเวอร์หลักเท่านั้น", color=COLOR_ERROR)
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+        return
     await interaction.response.send_modal(CustomizeAllModal())
 
-@bot.tree.command(name="ดูการตั้งค่า", description="ดูการตั้งค่าระบบปัจจุบันของเซิร์ฟเวอร์นี้")
+@bot.tree.command(name="ดูการตั้งค่า", description="ดูการตั้งค่าระบบปัจจุบัน (ใช้ได้เฉพาะเซิร์ฟเวอร์หลัก)")
 @app_commands.default_permissions(administrator=True)
 async def show_settings(interaction: discord.Interaction):
-    if not interaction.guild_id:
-        embed = discord.Embed(title="❌ เกิดข้อผิดพลาด", description="คำสั่งนี้ต้องใช้ภายใน Server เท่านั้น", color=COLOR_ERROR)
+    if not is_main_guild(interaction.guild_id):
+        embed = discord.Embed(title="🚫 ไม่อนุญาต", description="คำสั่งนี้ใช้ได้เฉพาะเซิร์ฟเวอร์หลักเท่านั้น", color=COLOR_ERROR)
         await interaction.response.send_message(embed=embed, ephemeral=True)
         return
 
@@ -718,7 +812,7 @@ async def show_settings(interaction: discord.Interaction):
     v_emoji = settings.get("verified_emoji", "✅")
     
     embed = discord.Embed(
-        title="⚙️ การตั้งค่าระบบปัจจุบัน (Server Settings)",
+        title="⚙️ การตั้งค่าระบบปัจจุบัน (เซิร์ฟเวอร์หลัก)",
         color=COLOR_INFO
     )
     embed.add_field(name="📌 Group ID", value=f"```{settings.get('roblox_group_id')}```", inline=True)
@@ -759,7 +853,7 @@ async def verify_endpoint(request: Request):
     data = await request.json()
     roblox_id = data.get("robloxId")
     roblox_username = str(data.get("robloxUsername", "")).strip()
-    guild_id = data.get("guildId")
+    guild_id = data.get("guildId") or get_main_guild_id()
     
     search_name = roblox_username.lower()
 
