@@ -16,7 +16,9 @@ from fastapi import FastAPI, Request
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN", "")
 PORT = int(os.getenv("SERVER_PORT") or os.getenv("PORT") or 8888)
 DB_PATH = os.getenv("DB_PATH", "database.db")
-MAIN_GUILD_ID_ENV = os.getenv("MAIN_GUILD_ID", None)
+
+# 🔴 ใส่ ID เซิร์ฟเวอร์หลักของคุณที่นี่ (เช่น 123456789012345678)
+MAIN_GUILD_ID = 1420812096421101611  # <--- แก้ไขไอดีเซิร์ฟหลักที่บรรทัดนี้
 
 GIF_URL = "https://cdn.discordapp.com/attachments/1420812683124670596/1540669145161662584/original_ddaceecdd62614ddf9a488b75ef88075.gif?ex=6a8acb74&is=6a8979f4&hm=7dfcdf79662c2c31c862537e84fa6d7c0768406c383c75ab75d3cb7389be5025&"
 
@@ -109,39 +111,11 @@ def init_db():
             )
             """
         )
-        conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS global_config (
-                key TEXT PRIMARY KEY,
-                value TEXT
-            )
-            """
-        )
-
-def get_main_guild_id():
-    if MAIN_GUILD_ID_ENV:
-        return str(MAIN_GUILD_ID_ENV)
-    with sqlite3.connect(DB_PATH) as conn:
-        cursor = conn.execute("SELECT value FROM global_config WHERE key = 'main_guild_id'")
-        row = cursor.fetchone()
-        return row[0] if row else None
-
-def set_main_guild_id(guild_id):
-    with sqlite3.connect(DB_PATH) as conn:
-        conn.execute(
-            """
-            INSERT INTO global_config (key, value)
-            VALUES ('main_guild_id', ?)
-            ON CONFLICT(key) DO UPDATE SET value = excluded.value
-            """,
-            (str(guild_id),)
-        )
 
 def is_main_guild(guild_id):
-    main_id = get_main_guild_id()
-    if not main_id:
-        return True
-    return str(guild_id) == str(main_id)
+    if not guild_id:
+        return False
+    return int(guild_id) == int(MAIN_GUILD_ID)
 
 def get_guild_settings(guild_id):
     if not guild_id:
@@ -153,9 +127,9 @@ def get_guild_settings(guild_id):
         
     settings = json.loads(json.dumps(DEFAULT_SETTINGS))
     
-    main_id = get_main_guild_id()
-    if main_id and str(guild_id) != str(main_id):
-        main_settings = get_guild_settings(main_id)
+    # หากไม่ใช่เซิร์ฟเวอร์หลัก ให้ดึงค่ากลุ่มและยศจากเซิร์ฟเวอร์หลักมาใช้
+    if not is_main_guild(guild_id) and MAIN_GUILD_ID:
+        main_settings = get_guild_settings(MAIN_GUILD_ID)
         settings["roblox_group_id"] = main_settings.get("roblox_group_id", settings["roblox_group_id"])
         settings["roblox_group_url"] = main_settings.get("roblox_group_url", settings["roblox_group_url"])
         settings["roblox_map_url"] = main_settings.get("roblox_map_url", settings["roblox_map_url"])
@@ -168,7 +142,7 @@ def get_guild_settings(guild_id):
                 settings.update({k: v for k, v in saved.items() if k not in {"role_ids", "rank_prefixes"}})
                 if isinstance(saved.get("role_ids"), dict):
                     settings["role_ids"].update(saved["role_ids"])
-                if isinstance(saved.get("rank_prefixes"), dict) and (not main_id or str(guild_id) == str(main_id)):
+                if isinstance(saved.get("rank_prefixes"), dict) and is_main_guild(guild_id):
                     settings["rank_prefixes"].update(saved["rank_prefixes"])
         except Exception as e:
             print(f"Error parsing settings for guild {guild_id}: {e}")
@@ -636,9 +610,6 @@ class CustomizeAllModal(discord.ui.Modal, title="⚙️ ปรับแต่ง
 @bot.tree.command(name="ยืนยันตัวตน", description="ตั้งค่าระบบยืนยันตัวตน (Administrator Only)")
 @app_commands.default_permissions(administrator=True)
 async def setup_verify(interaction: discord.Interaction):
-    if not get_main_guild_id():
-        set_main_guild_id(interaction.guild_id)
-        
     settings = get_guild_settings(interaction.guild_id)
     v_emoji = settings.get("verified_emoji", "✅")
     
@@ -734,22 +705,6 @@ async def set_emoji(interaction: discord.Interaction, อีโมจิ: str):
 # -------------------------------------------------------------
 # คำสั่งด้านล่างนี้สงวนสิทธิ์ให้ใช้ได้ "เฉพาะเซิร์ฟเวอร์หลักเท่านั้น"
 # -------------------------------------------------------------
-
-@bot.tree.command(name="ตั้งค่าเซิร์ฟเวอร์หลัก", description="กำหนดให้เซิร์ฟเวอร์นี้เป็นเซิร์ฟเวอร์หลักของระบบ (Administrator Only)")
-@app_commands.default_permissions(administrator=True)
-async def set_main_server(interaction: discord.Interaction):
-    if not interaction.guild_id:
-        embed = discord.Embed(title="❌ เกิดข้อผิดพลาด", description="คำสั่งนี้ต้องใช้ภายใน Server เท่านั้น", color=COLOR_ERROR)
-        await interaction.response.send_message(embed=embed, ephemeral=True)
-        return
-
-    set_main_guild_id(interaction.guild_id)
-    embed = discord.Embed(
-        title="👑 ตั้งค่าเซิร์ฟเวอร์หลักสำเร็จ",
-        description=f"กำหนดให้ **{interaction.guild.name}** (`{interaction.guild_id}`) เป็น **เซิร์ฟเวอร์หลัก** เรียบร้อยแล้ว!",
-        color=COLOR_SUCCESS
-    )
-    await interaction.response.send_message(embed=embed, ephemeral=True)
 
 async def clear_verification_data(interaction: discord.Interaction):
     if not is_main_guild(interaction.guild_id):
@@ -869,7 +824,7 @@ async def verify_endpoint(request: Request):
     data = await request.json()
     roblox_id = data.get("robloxId")
     roblox_username = str(data.get("robloxUsername", "")).strip()
-    guild_id = data.get("guildId") or get_main_guild_id()
+    guild_id = data.get("guildId") or MAIN_GUILD_ID
     
     search_name = roblox_username.lower()
 
