@@ -17,8 +17,8 @@ DISCORD_TOKEN = os.getenv("DISCORD_TOKEN", "")
 PORT = int(os.getenv("SERVER_PORT") or os.getenv("PORT") or 8888)
 DB_PATH = os.getenv("DB_PATH", "database.db")
 
-# 🔴 ใส่ ID เซิร์ฟเวอร์หลักของคุณที่นี่ (เช่น 123456789012345678)
-MAIN_GUILD_ID = 1420812096421101611  # <--- แก้ไขไอดีเซิร์ฟหลักที่บรรทัดนี้
+# 🔴 ระบุ ID เซิร์ฟเวอร์หลักของคุณที่นี่
+MAIN_GUILD_ID = 1420812096421101611  # <--- แก้ไขไอดีเซิร์ฟหลักที่บรรทัดนี้ (ใส่เป็นตัวเลข)
 
 GIF_URL = "https://cdn.discordapp.com/attachments/1420812683124670596/1540669145161662584/original_ddaceecdd62614ddf9a488b75ef88075.gif?ex=6a8acb74&is=6a8979f4&hm=7dfcdf79662c2c31c862537e84fa6d7c0768406c383c75ab75d3cb7389be5025&"
 
@@ -127,7 +127,6 @@ def get_guild_settings(guild_id):
         
     settings = json.loads(json.dumps(DEFAULT_SETTINGS))
     
-    # หากไม่ใช่เซิร์ฟเวอร์หลัก ให้ดึงค่ากลุ่มและยศจากเซิร์ฟเวอร์หลักมาใช้
     if not is_main_guild(guild_id) and MAIN_GUILD_ID:
         main_settings = get_guild_settings(MAIN_GUILD_ID)
         settings["roblox_group_id"] = main_settings.get("roblox_group_id", settings["roblox_group_id"])
@@ -188,7 +187,7 @@ def update_pending(discord_id, roblox_id, username):
         )
 
 # =========================
-# BOT SETUP
+# BOT SETUP & COMMAND ISOLATION
 # =========================
 class MyBot(commands.Bot):
     def __init__(self):
@@ -200,8 +199,47 @@ class MyBot(commands.Bot):
     async def setup_hook(self):
         self.add_view(VerifyView())
         self.add_view(ReVerifyView())
+        
+        # 1. รายชื่อคำสั่งที่อนุญาตให้เซิร์ฟเวอร์รองเห็นและใช้งานได้
+        sub_guild_command_names = ["ยืนยันตัวตน", "ใส่โรล", "ตั้งค่าอีโมจิ"]
+        
+        # 2. คัดแยกคำสั่งระหว่าง เซิร์ฟหลัก และ เซิร์ฟรอง
+        all_cmds = list(self.tree.get_commands())
+        sub_cmds = [cmd for cmd in all_cmds if cmd.name in sub_guild_command_names]
+
+        # 3. ล้างคำสั่ง Global ออกให้หมด เพื่อไม่ให้ติด Cache ในเซิร์ฟรอง
+        self.tree.clear_commands(guild=None)
         await self.tree.sync()
+
+        # 4. Sync คำสั่งทั้งหมดลงเฉพาะ 'เซิร์ฟเวอร์หลัก'
+        if MAIN_GUILD_ID:
+            main_guild_obj = discord.Object(id=int(MAIN_GUILD_ID))
+            self.tree.clear_commands(guild=main_guild_obj)
+            for cmd in all_cmds:
+                self.tree.add_command(cmd, guild=main_guild_obj)
+            await self.tree.sync(guild=main_guild_obj)
+
+        # 5. Sync เฉพาะ 3 คำสั่งลงในเซิร์ฟเวอร์อื่นๆ ทั้งหมด
+        for guild in self.guilds:
+            if guild.id != int(MAIN_GUILD_ID):
+                g_obj = discord.Object(id=guild.id)
+                self.tree.clear_commands(guild=g_obj)
+                for cmd in sub_cmds:
+                    self.tree.add_command(cmd, guild=g_obj)
+                await self.tree.sync(guild=g_obj)
+
         print(f"Dev System Multi-Guild v7 slash commands synced for {self.user}")
+
+    async def on_guild_join(self, guild: discord.Guild):
+        # เมื่อถูกเชิญเข้าเซิร์ฟใหม่ ให้ Sync เฉพาะ 3 คำสั่งทันที
+        if guild.id != int(MAIN_GUILD_ID):
+            sub_guild_command_names = ["ยืนยันตัวตน", "ใส่โรล", "ตั้งค่าอีโมจิ"]
+            g_obj = discord.Object(id=guild.id)
+            self.tree.clear_commands(guild=g_obj)
+            for cmd in self.tree.get_commands():
+                if cmd.name in sub_guild_command_names:
+                    self.tree.add_command(cmd, guild=g_obj)
+            await self.tree.sync(guild=g_obj)
 
 bot = MyBot()
 
