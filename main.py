@@ -735,6 +735,22 @@ async def set_emoji(interaction: discord.Interaction, อีโมจิ: str):
 # คำสั่งด้านล่างนี้สงวนสิทธิ์ให้ใช้ได้ "เฉพาะเซิร์ฟเวอร์หลักเท่านั้น"
 # -------------------------------------------------------------
 
+@bot.tree.command(name="ตั้งค่าเซิร์ฟเวอร์หลัก", description="กำหนดให้เซิร์ฟเวอร์นี้เป็นเซิร์ฟเวอร์หลักของระบบ (Administrator Only)")
+@app_commands.default_permissions(administrator=True)
+async def set_main_server(interaction: discord.Interaction):
+    if not interaction.guild_id:
+        embed = discord.Embed(title="❌ เกิดข้อผิดพลาด", description="คำสั่งนี้ต้องใช้ภายใน Server เท่านั้น", color=COLOR_ERROR)
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+        return
+
+    set_main_guild_id(interaction.guild_id)
+    embed = discord.Embed(
+        title="👑 ตั้งค่าเซิร์ฟเวอร์หลักสำเร็จ",
+        description=f"กำหนดให้ **{interaction.guild.name}** (`{interaction.guild_id}`) เป็น **เซิร์ฟเวอร์หลัก** เรียบร้อยแล้ว!",
+        color=COLOR_SUCCESS
+    )
+    await interaction.response.send_message(embed=embed, ephemeral=True)
+
 async def clear_verification_data(interaction: discord.Interaction):
     if not is_main_guild(interaction.guild_id):
         embed = discord.Embed(title="🚫 ไม่อนุญาต", description="คำสั่งนี้ใช้ได้เฉพาะเซิร์ฟเวอร์หลักเท่านั้น", color=COLOR_ERROR)
